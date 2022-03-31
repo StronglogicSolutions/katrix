@@ -19,7 +19,7 @@ add_subdirectory(third_party/mtxclient)
 include_directories(third_party/mtxclient/include src)
 
 set(SOURCE_FILES
-	src/katrix.cpp
+	src/main.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
