@@ -10,7 +10,6 @@ int main(int argc, char* argv[])
   bot.login(user, pass);
   while (!bot.logged_in()) ;
   bot.run();
-  while (true) ;
 
   return 0;
 }

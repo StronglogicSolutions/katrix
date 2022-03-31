@@ -21,6 +21,7 @@ void run()
   SyncOpts opts;
   opts.timeout = 0;
   g_client->sync(opts, &initial_sync_handler);
+  g_client->close();
 }
 
 bool logged_in() const
