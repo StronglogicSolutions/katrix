@@ -22,7 +22,9 @@ set(SOURCE_FILES
 	src/main.cpp
 )
 
-add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+add_executable(katrix_bot ${SOURCE_FILES})
+add_library(katrix STATIC ${SOURCE_FILES})
+
 
 include(FetchContent)
 FetchContent_Declare(
@@ -31,5 +33,6 @@ FetchContent_Declare(
 	GIT_TAG        v0.1.2
 	)
 FetchContent_MakeAvailable(coeurl)
-target_link_libraries(${PROJECT_NAME} PUBLIC coeurl::coeurl matrix_client)
+target_link_libraries(katrix_bot PUBLIC coeurl::coeurl matrix_client)
+target_link_libraries(katrix PUBLIC coeurl::coeurl matrix_client)
 
