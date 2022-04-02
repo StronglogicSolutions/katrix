@@ -1,9 +1,16 @@
 #include "helper.hpp"
 namespace katrix {
-using CallbackFunction = std::function<void(const mtx::responses::EventId&, RequestErr)>;
+enum class ResponseType
+{
+  created,
+  info
+};
+using CallbackFunction = std::function<void(std::string, ResponseType, RequestErr)>;
 using MessageType      = mtx::events::msg::Text;
 using EventID          = mtx::responses::EventId;
+using Groups           = mtx::responses::JoinedGroups;
 using RequestError     = mtx::http::RequestErr;
+
 class KatrixBot
 {
 public:
@@ -21,10 +28,10 @@ KatrixBot(const std::string& server,
 template <typename T, typename S = MessageType>
 void send_message(const T& room_id, const S& msg, const std::vector<T>& media = {})
 {
-  auto callback = [this](const mtx::responses::EventId& id, RequestErr e)
+  auto callback = [this](EventID res, RequestError e)
   {
     if (e)               print_error(e);
-    if (use_callback())  m_cb(id, e);
+    if (use_callback())  m_cb(res.event_id.to_string(), ResponseType::created, e);
   };
   g_client->send_room_message<S>(room_id, {msg}, callback);
 }
@@ -53,11 +60,45 @@ bool logged_in() const
   return g_client->access_token().size() > 0;
 }
 
+void get_info()
+{
+  auto callback = [this](mtx::events::presence::Presence res, RequestError e)
+  {
+    auto Parse = [](auto res)
+    {
+      return "Name: "        + res.displayname                      + "\n" +
+             "Last active: " + std::to_string(res.last_active_ago)  + "\n" +
+             "Online: "      + std::to_string(res.currently_active) + "\n" +
+             "Status: "      + res.status_msg;
+    };
+    if (e)              print_error(e);
+    if (use_callback()) m_cb(Parse(res), ResponseType::info, e);
+  };
+
+  g_client->presence_status("@" + m_username + ":" + g_client->server(), callback);
+}
+
 private:
 
 bool use_callback() const
 {
   return nullptr != m_cb;
+}
+
+template <typename T>
+void callback(T res, RequestErr e)
+{
+  if constexpr (std::is_same_v<T, mtx::responses::JoinedGroups>)
+  {
+    if (e)               print_error(e);
+    if (use_callback())  m_cb(res, e);
+  }
+  else
+  if constexpr (std::is_same_v<T, const mtx::responses::EventId>)
+  {
+    if (e)               print_error(e);
+    if (use_callback())  m_cb(res, e);
+  }
 }
 
 CallbackFunction m_cb;
