@@ -7,7 +7,10 @@ using RequestError     = mtx::http::RequestErr;
 class KatrixBot
 {
 public:
-KatrixBot(const std::string& server, const std::string& user, const std::string& pass, CallbackFunction cb = nullptr)
+KatrixBot(const std::string& server,
+          const std::string& user = "",
+          const std::string& pass = "",
+          CallbackFunction   cb   = nullptr)
 : m_username(user),
   m_password(pass),
   m_cb      (cb)
