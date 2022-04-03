@@ -3,7 +3,8 @@ namespace katrix {
 enum class ResponseType
 {
   created,
-  info
+  rooms,
+  user_info
 };
 using CallbackFunction = std::function<void(std::string, ResponseType, RequestErr)>;
 using MessageType      = mtx::events::msg::Text;
@@ -60,7 +61,7 @@ bool logged_in() const
   return g_client->access_token().size() > 0;
 }
 
-void get_info()
+void get_user_info()
 {
   auto callback = [this](mtx::events::presence::Presence res, RequestError e)
   {
@@ -72,10 +73,15 @@ void get_info()
              "Status: "      + res.status_msg;
     };
     if (e)              print_error(e);
-    if (use_callback()) m_cb(Parse(res), ResponseType::info, e);
+    if (use_callback()) m_cb(Parse(res), ResponseType::user_info, e);
   };
 
   g_client->presence_status("@" + m_username + ":" + g_client->server(), callback);
+}
+
+void get_rooms()
+{
+  if (use_callback()) m_cb("12345,room1\n67890,room2", ResponseType::rooms, RequestError{});
 }
 
 private:
