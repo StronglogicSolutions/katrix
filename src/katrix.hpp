@@ -45,7 +45,7 @@ KatrixBot(const std::string& server,
 void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& paths)
 {
   size_t tx_count = paths.size();
-  std::vector<std::string> mtx_urls;
+  std::vector<std::string> mtx_urls{};
   auto callback = [this, &mtx_urls, &tx_count, &room_id, &msg](mtx::responses::ContentURI uri, RequestError e)
   {
     if (e) print_error(e);
