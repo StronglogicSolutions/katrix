@@ -99,7 +99,7 @@ void upload(const std::string& path, UploadCallback cb = nullptr)
     if (e) print_error(e);
     if (use_callback()) m_cb(uri.content_uri, ResponseType::file_created, e);
   };
-  auto bytes = read_file(path);
+  auto bytes = kutils::ReadFile(path);
   auto pos   = path.find_last_of("/");
   std::string filename = (pos == std::string::npos) ? path : path.substr(pos + 1);
 
