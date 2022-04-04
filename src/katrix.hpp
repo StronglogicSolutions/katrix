@@ -42,6 +42,27 @@ KatrixBot(const std::string& server,
   g_client = std::make_shared<mtx::http::Client>(server);
 }
 
+void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& urls)
+{
+  size_t tx_count = urls.size();
+  std::vector<std::string> mtx_urls;
+  auto callback = [this, &mtx_urls, &tx_count, &room_id, &msg](mtx::responses::ContentURI uri, RequestError e)
+  {
+    if (e) print_error(e);
+    else
+    {
+      --tx_count;
+      mtx_urls.push_back(uri.content_uri);
+    }
+    if (!tx_count)
+    {
+      for (const auto& file : mtx_urls)
+        send_message<FileType>(room_id, get_file_type(file));
+      send_message(room_id, {msg});
+    }
+  };
+}
+
 template <typename T = MessageType>
 void send_message(const std::string& room_id, const T& msg, const std::vector<std::string>& media = {})
 {
@@ -67,9 +88,10 @@ void login(const T& username = "", const T& password = "")
   g_client->login(m_username, m_password, &login_handler);
 }
 
-void upload(const std::string& path)
+using UploadCallback = std::function<void(mtx::responses::ContentURI, RequestError)>;
+void upload(const std::string& path, UploadCallback cb = nullptr)
 {
-  auto callback = [this](mtx::responses::ContentURI uri, RequestError e)
+  auto callback = (cb) ? cb : [this](mtx::responses::ContentURI uri, RequestError e)
   {
     if (e) print_error(e);
     if (use_callback()) m_cb(uri.content_uri, ResponseType::file_created, e);
