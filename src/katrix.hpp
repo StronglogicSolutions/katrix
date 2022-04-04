@@ -44,7 +44,8 @@ KatrixBot(const std::string& server,
 
 void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& paths)
 {
-  tx_count = paths.size();
+  tx_count       = paths.size();
+  m_outbound_msg = msg;
   auto callback = [this, &room_id, &msg](mtx::responses::ContentURI uri, RequestError e)
   {
     if (e) print_error(e);
@@ -57,7 +58,7 @@ void send_media_message(const std::string& room_id, const std::string& msg, cons
     {
       for (const auto& file : m_mtx_urls)
         send_message<FileType>(room_id, get_file_type(file));
-      send_message(room_id, {msg});
+      send_message(room_id, {m_outbound_msg});
       m_mtx_urls.clear();
     }
   };
@@ -169,5 +170,6 @@ std::string              m_username;
 std::string              m_password;
 std::vector<std::string> m_mtx_urls;
 size_t                   tx_count;
+std::string              m_outbound_msg;
 };
 } // ns katrix
