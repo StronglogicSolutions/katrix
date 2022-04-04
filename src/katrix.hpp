@@ -4,14 +4,30 @@ enum class ResponseType
 {
   created,
   rooms,
-  user_info
+  user_info,
+  file_created,
+  file_uploaded,
+  unknown
 };
+
 using CallbackFunction = std::function<void(std::string, ResponseType, RequestErr)>;
 using MessageType      = mtx::events::msg::Text;
+using FileType         = mtx::events::msg::Image;
 using EventID          = mtx::responses::EventId;
 using Groups           = mtx::responses::JoinedGroups;
 using RequestError     = mtx::http::RequestErr;
 
+template <typename T>
+auto get_response_type = []
+{
+  if constexpr (std::is_same_v<T, MessageType>)
+    return ResponseType::created;
+  if constexpr (std::is_same_v<T, FileType>)
+    return ResponseType::file_uploaded;
+  return ResponseType::unknown;
+};
+
+auto get_file_type = [](auto url) { return FileType{"Katrix File", "m.file", url}; };
 class KatrixBot
 {
 public:
@@ -26,15 +42,18 @@ KatrixBot(const std::string& server,
   g_client = std::make_shared<mtx::http::Client>(server);
 }
 
-template <typename T, typename S = MessageType>
-void send_message(const T& room_id, const S& msg, const std::vector<T>& media = {})
+template <typename T = MessageType>
+void send_message(const std::string& room_id, const T& msg, const std::vector<std::string>& media = {})
 {
   auto callback = [this](EventID res, RequestError e)
   {
     if (e)               print_error(e);
-    if (use_callback())  m_cb(res.event_id.to_string(), ResponseType::created, e);
+    if (use_callback())  m_cb(res.event_id.to_string(), get_response_type<T>(), e);
   };
-  g_client->send_room_message<S>(room_id, {msg}, callback);
+
+  for (const auto& file : media)
+    send_message<FileType>(room_id, get_file_type(file));
+  g_client->send_room_message<T>(room_id, {msg}, callback);
 }
 template <typename T = std::string>
 void login(const T& username = "", const T& password = "")
@@ -46,6 +65,20 @@ void login(const T& username = "", const T& password = "")
   }
 
   g_client->login(m_username, m_password, &login_handler);
+}
+
+void upload(const std::string& path)
+{
+  auto callback = [this](mtx::responses::ContentURI uri, RequestError e)
+  {
+    if (e) print_error(e);
+    if (use_callback()) m_cb(uri.content_uri, ResponseType::file_created, e);
+  };
+  auto bytes = read_file(path);
+  auto pos   = path.find_last_of("/");
+  std::string filename = (pos == std::string::npos) ? path : path.substr(pos + 1);
+
+  g_client->upload(bytes, "application/octet-stream", filename, callback);
 }
 
 void run()
