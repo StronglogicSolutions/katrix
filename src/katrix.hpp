@@ -42,9 +42,9 @@ KatrixBot(const std::string& server,
   g_client = std::make_shared<mtx::http::Client>(server);
 }
 
-void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& urls)
+void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& paths)
 {
-  size_t tx_count = urls.size();
+  size_t tx_count = paths.size();
   std::vector<std::string> mtx_urls;
   auto callback = [this, &mtx_urls, &tx_count, &room_id, &msg](mtx::responses::ContentURI uri, RequestError e)
   {
@@ -61,6 +61,8 @@ void send_media_message(const std::string& room_id, const std::string& msg, cons
       send_message(room_id, {msg});
     }
   };
+  for (const auto& path : paths)
+    upload(path, callback);
 }
 
 template <typename T = MessageType>
