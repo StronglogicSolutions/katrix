@@ -16,7 +16,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "compile as PIC by default")
 
 add_subdirectory(third_party/mtxclient)
 
-include_directories(third_party/mtxclient/include src)
+include_directories(third_party/mtxclient/include third_party/kutils/include src)
 
 set(SOURCE_FILES
 	src/main.cpp

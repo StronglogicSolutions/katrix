@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <fstream>
 #include <sstream>
+#include <kutils.hpp>
 #include "mtx.hpp"
 #include "mtxclient/http/client.hpp"
 #include "mtxclient/http/errors.hpp"
@@ -130,14 +131,6 @@ void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
   opts.since = res.next_batch;
   g_client->set_next_batch_token(res.next_batch);
   g_client->sync(opts, &sync_handler);
-  }
-
-
-std::string read_file(const std::string& path)
-{
-  std::ifstream fs{path};
-  std::stringstream ss;
-  ss << fs.rdbuf();
-  return ss.str();
 }
+
 } // ns katrix

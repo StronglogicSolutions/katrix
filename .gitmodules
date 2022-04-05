@@ -1,3 +1,6 @@
 [submodule "third_party/mtxclient"]
 	path = third_party/mtxclient
 	url = https://github.com/Nheko-Reborn/mtxclient
+[submodule "third_party/kutils"]
+	path = third_party/kutils
+	url = https://github.com/StronglogicSolutions/kutils.git
