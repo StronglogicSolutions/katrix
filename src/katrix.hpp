@@ -1,4 +1,6 @@
 #include "helper.hpp"
+#include <deque>
+
 namespace katrix {
 enum class ResponseType
 {
@@ -27,7 +29,44 @@ auto get_response_type = []
   return ResponseType::unknown;
 };
 
-auto get_file_type = [](auto url) { return FileType{"Katrix File", "m.file", url}; };
+struct TXMessage
+{
+  using MimeType = kutils::MimeType;
+  struct File
+  {
+    File(const std::string& name)
+    : filename(name),
+      mime(kutils::GetMimeType(name))
+    {
+    }
+
+    std::string filename;
+    std::string mtx_url;
+    MimeType    mime;
+
+    bool ready() const { return !mtx_url.empty(); }
+  };
+
+  using Files_t = std::vector<TXMessage::File>;
+  TXMessage(const std::string& msg, const std::string& id, const std::vector<std::string>& urls)
+  : message(msg),
+    room_id(id),
+    mx_count(urls.size()),
+    files([](auto paths) { Files_t f{}; for (const auto& p : paths) f.emplace_back(File{p}); return f; }(urls))
+  {}
+
+  std::string       message;
+  std::string       room_id;
+  size_t            mx_count;
+  std::vector<File> files;
+};
+
+auto get_file_type = [](TXMessage::File file)
+{
+  return FileType{"Katrix File", "m.file", file.mtx_url, mtx::common::ImageInfo{
+    0, 0, 0, mtx::common::ThumbnailInfo{0, 0, 0, file.mime.name}, file.mtx_url, file.mime.name
+  }};
+};
 class KatrixBot
 {
 public:
@@ -44,22 +83,32 @@ KatrixBot(const std::string& server,
 
 void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& paths)
 {
-  tx_count       = paths.size();
-  m_outbound_msg = msg;
-  auto callback = [this, &room_id, &msg](mtx::responses::ContentURI uri, RequestError e)
+  m_tx_queue.push_back(TXMessage{msg, room_id, paths});
+  auto callback = [this, &room_id](mtx::responses::ContentURI uri, RequestError e)
   {
     if (e) print_error(e);
     else
     {
-      --tx_count;
-      m_mtx_urls.push_back(uri.content_uri);
-    }
-    if (!tx_count)
-    {
-      for (const auto& file : m_mtx_urls)
-        send_message<FileType>(room_id, get_file_type(file));
-      send_message(room_id, {m_outbound_msg});
-      m_mtx_urls.clear();
+      for (auto it = m_tx_queue.begin(); it != m_tx_queue.end();)
+      {
+        for (TXMessage::File& file : it->files)
+        {
+          if (!file.ready())
+          {
+            file.mtx_url = uri.content_uri;
+            it->mx_count--;
+          }
+        }
+        if (!(it->mx_count))
+        {
+          for (const auto& file : it->files)
+            send_message<FileType>(it->room_id, get_file_type(file));
+          send_message(it->room_id, {it->message});
+          it = m_tx_queue.erase(it);
+        }
+        else
+          it++;
+      }
     }
   };
   for (const auto& path : paths)
@@ -165,11 +214,9 @@ void callback(T res, RequestErr e)
   }
 }
 
-CallbackFunction         m_cb;
-std::string              m_username;
-std::string              m_password;
-std::vector<std::string> m_mtx_urls;
-size_t                   tx_count;
-std::string              m_outbound_msg;
+CallbackFunction      m_cb;
+std::string           m_username;
+std::string           m_password;
+std::deque<TXMessage> m_tx_queue;
 };
 } // ns katrix
