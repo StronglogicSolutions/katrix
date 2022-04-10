@@ -1,5 +1,8 @@
+#pragma once
+
 #include "helper.hpp"
 #include <deque>
+#include <csignal>
 
 namespace katrix {
 enum class ResponseType
@@ -13,8 +16,9 @@ enum class ResponseType
 };
 
 using CallbackFunction = std::function<void(std::string, ResponseType, RequestErr)>;
-using MessageType      = mtx::events::msg::Text;
-using FileType         = mtx::events::msg::Image;
+using Msg_t            = mtx::events::msg::Text;
+using Image_t          = mtx::events::msg::Image;
+using Video_t          = mtx::events::msg::Video;
 using EventID          = mtx::responses::EventId;
 using Groups           = mtx::responses::JoinedGroups;
 using RequestError     = mtx::http::RequestErr;
@@ -22,11 +26,10 @@ using RequestError     = mtx::http::RequestErr;
 template <typename T>
 auto get_response_type = []
 {
-  if constexpr (std::is_same_v<T, MessageType>)
-    return ResponseType::created;
-  if constexpr (std::is_same_v<T, FileType>)
-    return ResponseType::file_uploaded;
-  return ResponseType::unknown;
+  if constexpr (std::is_same_v<T, Msg_t>)   return ResponseType::created;
+  if constexpr (std::is_same_v<T, Video_t>) return ResponseType::file_uploaded;
+  if constexpr (std::is_same_v<T, Image_t>) return ResponseType::file_uploaded;
+                                            return ResponseType::unknown;
 };
 
 struct TXMessage
@@ -61,11 +64,17 @@ struct TXMessage
   std::vector<File> files;
 };
 
-auto get_file_type = [](TXMessage::File file)
+template <typename T>
+static T get_file_type(TXMessage::File file)
 {
-  return FileType{"Katrix File", "m.file", file.mtx_url, mtx::common::ImageInfo{
-    0, 0, 0, mtx::common::ThumbnailInfo{0, 0, 0, file.mime.name}, file.mtx_url, file.mime.name
-  }};
+  if constexpr (std::is_same_v<T, Image_t>)
+    return Image_t{"Katrix Image", "m.image", file.mtx_url, mtx::common::ImageInfo{
+      0, 0, 0, mtx::common::ThumbnailInfo{0, 0, 0, file.mime.name}, file.mtx_url, file.mime.name
+    }};
+  if constexpr (std::is_same_v<T, Video_t>)
+    return Video_t{"Katrix Video", "m.video", file.mtx_url, mtx::common::VideoInfo{
+      0, 0, 0, 0, file.mime.name, ""/*thumbURL*/, mtx::common::ThumbnailInfo{0, 0, 0, ""/*thumbMIME*/}
+    }};
 };
 class KatrixBot
 {
@@ -101,8 +110,7 @@ void send_media_message(const std::string& room_id, const std::string& msg, cons
         }
         if (!(it->mx_count))
         {
-          for (const auto& file : it->files)
-            send_message<FileType>(it->room_id, get_file_type(file));
+          send_media  (it->room_id, it->files);
           send_message(it->room_id, {it->message});
           it = m_tx_queue.erase(it);
         }
@@ -115,7 +123,30 @@ void send_media_message(const std::string& room_id, const std::string& msg, cons
     upload(path, callback);
 }
 
-template <typename T = MessageType>
+template <typename T = TXMessage::Files_t>
+void send_media(const std::string& id, T&& files)
+{
+  auto get_files_t = [](auto&& v)
+  {
+    TXMessage::Files_t f; for (auto&& m : v) f.emplace_back(TXMessage::File{v});
+    return f;
+  };
+
+  if constexpr (std::is_same_v<T, TXMessage::Files_t>)
+    for (const auto& file : files)
+      if (file.mime.IsPhoto())
+        send_message<Image_t>(id, get_file_type<Image_t>(file));
+      else
+        send_message<Video_t>(id, get_file_type<Video_t>(file));
+  if constexpr (std::is_same_v<T, std::vector<std::string>>)
+    for (const auto& file : get_files_t(files))
+      if (file.mime.IsPhoto())
+        send_message<Image_t>(id, get_file_type<Image_t>(file));
+      else
+        send_message<Video_t>(id, get_file_type<Video_t>(file));
+}
+
+template <typename T = Msg_t>
 void send_message(const std::string& room_id, const T& msg, const std::vector<std::string>& media = {})
 {
   auto callback = [this](EventID res, RequestError e)
@@ -124,8 +155,7 @@ void send_message(const std::string& room_id, const T& msg, const std::vector<st
     if (use_callback())  m_cb(res.event_id.to_string(), get_response_type<T>(), e);
   };
 
-  for (const auto& file : media)
-    send_message<FileType>(room_id, get_file_type(file));
+  send_media(room_id, media);
   g_client->send_room_message<T>(room_id, {msg}, callback);
 }
 template <typename T = std::string>
