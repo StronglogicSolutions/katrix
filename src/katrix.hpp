@@ -58,10 +58,10 @@ struct TXMessage
     files([](auto paths) { Files_t f{}; for (const auto& p : paths) f.emplace_back(File{p}); return f; }(urls))
   {}
 
-  std::string       message;
-  std::string       room_id;
-  size_t            mx_count;
-  std::vector<File> files;
+  std::string message;
+  std::string room_id;
+  size_t      mx_count;
+  Files_t     files;
 };
 
 template <typename T>
@@ -128,17 +128,17 @@ void send_media(const std::string& id, T&& files)
 {
   auto get_files_t = [](auto&& v)
   {
-    TXMessage::Files_t f; for (auto&& m : v) f.emplace_back(TXMessage::File{v});
+    TXMessage::Files_t f; for (auto&& m : v) f.emplace_back(TXMessage::File{m});
     return f;
   };
 
-  if constexpr (std::is_same_v<T, TXMessage::Files_t>)
+  if constexpr (std::is_same_v<std::decay_t<T>, TXMessage::Files_t>)
     for (const auto& file : files)
       if (file.mime.IsPhoto())
         send_message<Image_t>(id, get_file_type<Image_t>(file));
       else
         send_message<Video_t>(id, get_file_type<Video_t>(file));
-  if constexpr (std::is_same_v<T, std::vector<std::string>>)
+  if constexpr (std::is_same_v<std::decay_t<T>, std::vector<std::string>>)
     for (const auto& file : get_files_t(files))
       if (file.mime.IsPhoto())
         send_message<Image_t>(id, get_file_type<Image_t>(file));
