@@ -155,12 +155,29 @@ void upload(const std::string& path, UploadCallback cb = nullptr)
   g_client->upload(bytes, "application/octet-stream", filename, callback);
 }
 
-void run()
+void run(bool error = false)
 {
-  SyncOpts opts;
-  opts.timeout = 0;
-  g_client->sync(opts, &initial_sync_handler);
-  g_client->close();
+  try
+  {
+    if (error)
+    {
+      login();
+      while (!logged_in()) ;
+    }
+
+    SyncOpts opts;
+    opts.timeout = 0;
+    g_client->sync(opts, &initial_sync_handler);
+    g_client->close();
+  }
+  catch(const std::exception& e)
+  {
+    std::cerr << "Exception caught: " << e.what() << std::endl;
+    if (!error)
+      run(true);
+    else
+      throw;
+  }
 }
 
 bool logged_in() const
