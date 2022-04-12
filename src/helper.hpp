@@ -20,7 +20,7 @@ static void log(Args... args) { for (const auto& s : { args... }) std::cout << s
 ///////////////////////////////////////////////////////////////
 std::string get_sender(const mtx::events::collections::TimelineEvents &event)
 {
-    return std::visit([](auto e) { return e.sender; }, event);
+  return std::visit([](auto e) { return e.sender; }, event);
 }
 ///////////////////////////////////////////////////////////////
 bool is_room_message(const mtx::events::collections::TimelineEvents &e)
