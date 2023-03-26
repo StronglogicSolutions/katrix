@@ -33,6 +33,6 @@ FetchContent_Declare(
 	GIT_TAG        v0.1.2
 	)
 FetchContent_MakeAvailable(coeurl)
-target_link_libraries(katrix_bot PUBLIC coeurl::coeurl matrix_client)
-target_link_libraries(katrix PUBLIC coeurl::coeurl matrix_client)
+target_link_libraries(katrix_bot PUBLIC coeurl::coeurl matrix_client -lbsd)
+target_link_libraries(katrix PUBLIC coeurl::coeurl matrix_client -lbsd)
 
