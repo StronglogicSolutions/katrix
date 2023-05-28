@@ -76,6 +76,7 @@ static T get_file_type(TXMessage::File file)
       0, 0, 0, 0, file.mime.name, ""/*thumbURL*/, mtx::common::ThumbnailInfo{0, 0, 0, ""/*thumbMIME*/}
     }};
 };
+
 class KatrixBot
 {
 public:
@@ -202,7 +203,8 @@ void run(bool error = false)
   }
   catch(const std::exception& e)
   {
-    std::cerr << "Exception caught: " << e.what() << std::endl;
+    klog().e("Exception caught: {}", e.what());
+
     if (!error)
       run(true);
     else

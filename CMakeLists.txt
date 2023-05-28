@@ -10,13 +10,13 @@ HunterGate(
 
 project(katrix
 				VERSION 0.0.1)
-set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard")
+set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ standard")
 set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "Require C++ standard to be supported")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "compile as PIC by default")
 
 add_subdirectory(third_party/mtxclient)
 
-include_directories(third_party/mtxclient/include third_party/kutils/include src)
+include_directories(third_party/mtxclient/include third_party/kutils/include third_party/klogger/src src)
 
 set(SOURCE_FILES
 	src/main.cpp
@@ -25,6 +25,8 @@ set(SOURCE_FILES
 add_executable(katrix_bot ${SOURCE_FILES})
 add_library(katrix STATIC ${SOURCE_FILES})
 
+find_package(fmt CONFIG REQUIRED)
+set(KLOGGER "${CMAKE_SOURCE_DIR}/third_party/klogger/build/libklog.a")
 
 include(FetchContent)
 FetchContent_Declare(
@@ -33,6 +35,6 @@ FetchContent_Declare(
 	GIT_TAG        v0.1.2
 	)
 FetchContent_MakeAvailable(coeurl)
-target_link_libraries(katrix_bot PUBLIC coeurl::coeurl matrix_client -lbsd)
-target_link_libraries(katrix PUBLIC coeurl::coeurl matrix_client -lbsd)
+target_link_libraries(katrix_bot PUBLIC coeurl::coeurl matrix_client -lbsd fmt::fmt ${KLOGGER})
+target_link_libraries(katrix     PUBLIC coeurl::coeurl matrix_client -lbsd fmt::fmt ${KLOGGER})
 
