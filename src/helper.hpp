@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <kutils.hpp>
+#include <logger.hpp>
 #include "mtx.hpp"
 #include "mtxclient/http/client.hpp"
 #include "mtxclient/http/errors.hpp"
@@ -15,8 +16,7 @@ using namespace mtx::events;
 
 using PublicMessage = RoomEvent<msg::Text>;
 ///////////////////////////////////////////////////////////////
-template<typename... Args>
-static void log(Args... args) { for (const auto& s : { args... }) std::cout << s; std::cout << std::endl; }
+using namespace kiq::log;
 ///////////////////////////////////////////////////////////////
 std::string get_sender(const mtx::events::collections::TimelineEvents &event)
 {
@@ -55,43 +55,40 @@ std::string get_body(const mtx::events::collections::TimelineEvents &e)
 ///////////////////////////////////////////////////////////////
 void print_message(const mtx::events::collections::TimelineEvents &event)
 {
-  if (is_room_message(event)) log(get_sender(event), std::string{" : "}, get_body(event));
+  if (is_room_message(event))
+    klog().i("{} : {}", get_sender(event), get_body(event));
 }
 ///////////////////////////////////////////////////////////////
 static const auto IsMe = [](auto&& e) { return get_sender(e) == "@logicp:matrix.org"; };
 ///////////////////////////////////////////////////////////////
-std::string error_to_string(RequestErr err)
+void print_error(RequestErr e)
 {
-  return
-  "HTTP  code: " + std::to_string(err->status_code) + '\n' +
-  "Error msg:  " + err->matrix_error.error + '\n' +
-  "Error code: " + std::to_string(err->error_code);
+  klog().e("HTTP  code: {}\nError msg:  {}\nError code: {}", e->status_code, e->matrix_error.error, e->error_code);
 }
-///////////////////////////////////////////////////////////////
-void print_error(RequestErr e) { std::cerr << error_to_string(e) << std::endl; }
 ///////////////////////////////////////////////////////////////
 void login_handler(const mtx::responses::Login &res, RequestErr err)
 {
   if (err)
   {
-    log("There was an error during login: ", err->matrix_error.error.c_str());
+    klog().e("There was an error during login: {}", err->matrix_error.error);
     return;
   }
 
-  log("Logged in as: ", res.user_id.to_string().c_str());
+  klog().i("Logged in as: {}", res.user_id.to_string());
 
   g_client->set_access_token(res.access_token);
 }
 ///////////////////////////////////////////////////////////////
 void sync_handler(const mtx::responses::Sync &res, RequestErr err)
 {
-  auto callback = [](const mtx::responses::EventId &, RequestErr e) { if (e) error_to_string(e); };
+  auto callback = [](const mtx::responses::EventId &, RequestErr e) { if (e) print_error(e); };
 
   SyncOpts opts;
 
     if (err)
     {
-      log("sync error:\n", error_to_string(err).c_str());
+      klog().e("Sync error");
+      print_error(err);
       opts.since = g_client->next_batch_token();
       g_client->sync(opts, &sync_handler);
       return;
@@ -118,10 +115,11 @@ void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
 
   if (err)
   {
-    log("error during initial sync:\n", error_to_string(err).c_str());
+    klog().e("error during initial sync");
+    print_error(err);
     if (err->status_code != 200)
     {
-      log("retrying initial sync ...");
+      klog().d("retrying initial sync ...");
       opts.timeout = 0;
       g_client->sync(opts, &initial_sync_handler);
     }

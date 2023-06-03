@@ -20,7 +20,7 @@ using Msg_t            = mtx::events::msg::Text;
 using Image_t          = mtx::events::msg::Image;
 using Video_t          = mtx::events::msg::Video;
 using EventID          = mtx::responses::EventId;
-using Groups           = mtx::responses::JoinedGroups;
+// using Groups           = mtx::responses::JoinedRoom;
 using RequestError     = mtx::http::RequestErr;
 
 template <typename T>
@@ -76,6 +76,7 @@ static T get_file_type(TXMessage::File file)
       0, 0, 0, 0, file.mime.name, ""/*thumbURL*/, mtx::common::ThumbnailInfo{0, 0, 0, ""/*thumbMIME*/}
     }};
 };
+
 class KatrixBot
 {
 public:
@@ -202,7 +203,8 @@ void run(bool error = false)
   }
   catch(const std::exception& e)
   {
-    std::cerr << "Exception caught: " << e.what() << std::endl;
+    klog().e("Exception caught: {}", e.what());
+
     if (!error)
       run(true);
     else
@@ -248,12 +250,12 @@ bool use_callback() const
 template <typename T>
 void callback(T res, RequestErr e)
 {
-  if constexpr (std::is_same_v<T, mtx::responses::JoinedGroups>)
-  {
-    if (e)               print_error(e);
-    if (use_callback())  m_cb(res, e);
-  }
-  else
+  // if constexpr (std::is_same_v<T, mtx::responses::JoinedGroups>)
+  // {
+  //   if (e)               print_error(e);
+  //   if (use_callback())  m_cb(res, e);
+  // }
+  // else
   if constexpr (std::is_same_v<T, const mtx::responses::EventId>)
   {
     if (e)               print_error(e);
