@@ -1,11 +1,10 @@
 #pragma once
 
 #include "helper.hpp"
-#include <deque>
+#include "server.hpp"
 #include <csignal>
-#include <zmq.hpp>
 
-namespace katrix {
+namespace kiq::katrix {
 enum class ResponseType
 {
   created,
@@ -16,7 +15,8 @@ enum class ResponseType
   unknown
 };
 
-using CallbackFunction = std::function<void(std::string, ResponseType, RequestErr)>;
+using ReqErr           = mtx::http::RequestErr;
+using CallbackFunction = std::function<void(std::string, ResponseType, ReqErr)>;
 using Msg_t            = mtx::events::msg::Text;
 using Image_t          = mtx::events::msg::Image;
 using Video_t          = mtx::events::msg::Video;
@@ -199,7 +199,7 @@ void run(bool error = false)
 
     SyncOpts opts;
     opts.timeout = 0;
-    g_client->sync(opts, &initial_sync_handler);
+    g_client->sync(opts, [this](const auto& resp, const auto& err) { initial_sync_handler(resp, err); });
     g_client->close();
   }
   catch(const std::exception& e)
@@ -241,6 +241,64 @@ void get_rooms()
   if (use_callback()) m_cb("12345,room1\n67890,room2", ResponseType::rooms, RequestError{});
 }
 
+///////////////////////////////////////////////////////////////
+void sync_handler(const mtx::responses::Sync &res, RequestErr err)
+{
+  auto callback = [](const mtx::responses::EventId &, RequestErr e) { if (e) print_error(e); };
+
+  SyncOpts opts;
+
+    if (err)
+    {
+      klog().e("Sync error");
+      print_error(err);
+      opts.since = g_client->next_batch_token();
+      g_client->sync(opts, [this] (const auto& resp, const auto& err) { sync_handler(resp, err); });
+      return;
+    }
+
+    for (const auto &room : res.rooms.join)
+    {
+      for (const auto &msg : room.second.timeline.events)
+      {
+        print_message(msg);
+        if (room.first == "!BiClPQPHQPnqaRmuiV:matrix.org" && !IsMe(msg))
+          g_client->send_room_message<mtx::events::msg::Text>(room.first, {"Automated message, bitch"}, callback);
+      }
+    }
+
+    opts.since = res.next_batch;
+    g_client->set_next_batch_token(res.next_batch);
+    g_client->sync(opts, [this](const auto& resp, const auto& err) { sync_handler(resp, err); });
+
+    if (m_server.has_msgs())
+    {
+      auto&& msg = std::move(m_server.get_msg());
+    }
+}
+///////////////////////////////////////////////////////////////
+void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
+{
+  SyncOpts opts;
+
+  if (err)
+  {
+    klog().e("error during initial sync");
+    print_error(err);
+    if (err->status_code != 200)
+    {
+      klog().d("retrying initial sync ...");
+      opts.timeout = 0;
+      g_client->sync(opts, [this](const auto& resp, const auto& err) { initial_sync_handler(resp, err); });
+    }
+    return;
+  }
+
+  opts.since = res.next_batch;
+  g_client->set_next_batch_token(res.next_batch);
+  g_client->sync(opts, [this](const auto& resp, const auto& err) { sync_handler(resp, err); });
+}
+
 private:
 
 bool use_callback() const
@@ -268,6 +326,6 @@ CallbackFunction      m_cb;
 std::string           m_username;
 std::string           m_password;
 std::deque<TXMessage> m_tx_queue;
-zmq::context_t        m_ctx{1};
+server                m_server;
 };
-} // ns katrix
+} // ns kiq::katrix

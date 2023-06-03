@@ -2,8 +2,8 @@
 
 int main(int argc, char* argv[])
 {
-  katrix::klogger::init("katrix", "trace");
-  auto log = katrix::klogger::instance();
+  kiq::katrix::klogger::init("katrix", "trace");
+  auto log = kiq::katrix::klogger::instance();
 
   std::string server = "";
   std::string room   = "";
@@ -12,18 +12,18 @@ int main(int argc, char* argv[])
   std::string user   = "";
   std::string pass   = "";
 
-  katrix::KatrixBot bot{server, user, pass, [&](auto res, katrix::ResponseType type, katrix::RequestError e)
+  kiq::katrix::KatrixBot bot{server, user, pass, [&](auto res, kiq::katrix::ResponseType type, kiq::katrix::RequestError e)
   {
     log.d(res);
     if (e)
-      katrix::print_error(e);
-    if (type == katrix::ResponseType::file_created)
+      kiq::katrix::print_error(e);
+    if (type == kiq::katrix::ResponseType::file_created)
       log.i("File created");
     else
-    if (type == katrix::ResponseType::file_uploaded)
+    if (type == kiq::katrix::ResponseType::file_uploaded)
       log.i("File uploaded");
     else
-    if (type == katrix::ResponseType::created)
+    if (type == kiq::katrix::ResponseType::created)
       log.i("Message sent!");
   }};
 
