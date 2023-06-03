@@ -11,7 +11,7 @@ set(SOURCE_FILES
 )
 
 add_library(matrix_client SHARED IMPORTED)
-set_property(TARGET matrix_client PROPERTY IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/third_party/mtxclient/build/libmatrix_client.so")
+set_property(TARGET matrix_client PROPERTY IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/third_party/mtxclient/build/libmatrix_clientd.so")
 
 add_executable(katrix_bot ${SOURCE_FILES})
 add_library(katrix STATIC ${SOURCE_FILES})
@@ -43,6 +43,6 @@ include_directories(katrix_bot
 	src
 )
 
-target_link_libraries(katrix     PUBLIC coeurl::coeurl matrix_client -lbsd fmt::fmt ${KLOGGER})
-target_link_libraries(katrix_bot PUBLIC coeurl::coeurl matrix_client -lbsd fmt::fmt ${KLOGGER})
+target_link_libraries(katrix     PUBLIC coeurl::coeurl matrix_client -lbsd zmq fmt::fmt ${KLOGGER})
+target_link_libraries(katrix_bot PUBLIC coeurl::coeurl matrix_client -lbsd zmq fmt::fmt ${KLOGGER})
 

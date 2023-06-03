@@ -3,6 +3,7 @@
 #include "helper.hpp"
 #include <deque>
 #include <csignal>
+#include <zmq.hpp>
 
 namespace katrix {
 enum class ResponseType
@@ -267,5 +268,6 @@ CallbackFunction      m_cb;
 std::string           m_username;
 std::string           m_password;
 std::deque<TXMessage> m_tx_queue;
+zmq::context_t        m_ctx{1};
 };
 } // ns katrix
