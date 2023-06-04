@@ -94,6 +94,7 @@ KatrixBot(const std::string& server,
 
 void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& paths)
 {
+  klog().d("Sending media message with {} urls", paths.size());
   m_tx_queue.push_back(TXMessage{msg, room_id, paths});
   auto callback = [this, &room_id](mtx::responses::ContentURI uri, RequestError e)
   {
@@ -271,10 +272,28 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
     g_client->set_next_batch_token(res.next_batch);
     g_client->sync(opts, [this](const auto& resp, const auto& err) { sync_handler(resp, err); });
 
-    if (m_server.has_msgs())
+    while (m_server.has_msgs())
+      process_request(m_converter.receive(std::move(m_server.get_msg())));
+
+}
+///////////////////////////////////////////////////////////////
+void process_request(const request_t& req)
+{
+  // throttle?
+  if (req.media.empty())
+  {
+    send_message(m_room_id, Msg_t{req.text});
+  }
+  std::vector<std::string> paths;
+  const auto&              urls = kutils::urls_from_string(req.media);
+  for (const auto& url : urls)
+    g_client->client_get(url, [this, &paths, &urls, &req] (const auto& r)
     {
-      auto&& msg = std::move(m_server.get_msg());
-    }
+      if (!r.empty())
+        paths.push_back(r);
+      if (paths.size() == urls.size()) // TODO: brittle condition.
+        send_media_message(m_room_id, {req.text}, paths);
+    });
 }
 ///////////////////////////////////////////////////////////////
 void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
@@ -325,7 +344,9 @@ void callback(T res, RequestErr e)
 CallbackFunction      m_cb;
 std::string           m_username;
 std::string           m_password;
+std::string           m_room_id{""};
 std::deque<TXMessage> m_tx_queue;
 server                m_server;
+request_converter     m_converter;
 };
 } // ns kiq::katrix

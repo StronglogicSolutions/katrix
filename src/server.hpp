@@ -1,8 +1,6 @@
 #include <deque>
-#include <zmq.hpp>
 #include <kutils.hpp>
 #include <kproto/ipc.hpp>
-// #include "types.hpp"
 
 //----------------------------------------------------------------
 namespace kiq::katrix

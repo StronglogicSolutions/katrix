@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include <logger.hpp>
 
 static const char* RX_ADDR{"tcp://0.0.0.0:28477"};
 static const char* TX_ADDR{"tcp://0.0.0.0:28478"};
@@ -45,9 +46,9 @@ server::server()
   tx_.connect(TX_ADDR);
 
   future_ = std::async(std::launch::async, [this] { run(); });
-  kutils::log("Server listening on ", RX_ADDR);
+  kiq::log::klog().i("Server listening on ", RX_ADDR);
 
-  kiq::set_log_fn([](const char* message) { kutils::log(message);} );
+  kiq::set_log_fn([](const char* message) { kiq::log::klog().t(message);} );
 }
 //----------------------------------
 server::~server()
@@ -78,7 +79,7 @@ void server::reply(bool success)
 {
   if (!replies_pending_)
   {
-    kutils::log("Received reply value, but not currently waiting to reply. Ignoring");
+    kiq::log::klog().d("Received reply value, but not currently waiting to reply. Ignoring");
     return;
   }
 
@@ -102,7 +103,7 @@ void server::reply(bool success)
     tx_.send(message, flag);
   }
 
-  kutils::log("Sent reply of ", constants::IPC_MESSAGE_NAMES.at(msg->type()));
+  kiq::log::klog().t("Sent reply of {}", constants::IPC_MESSAGE_NAMES.at(msg->type()));
   replies_pending_--;
 }
 
@@ -121,7 +122,7 @@ void server::recv()
                                               return false; };                                                  // no match
   zmq::message_t identity;
   if (!rx_.recv(identity) || identity.empty())
-    return log("Socket failed to receive");
+    return kiq::log::klog().e("Socket failed to receive");
 
   buffers_t      buffer;
   zmq::message_t msg;
@@ -133,17 +134,17 @@ void server::recv()
     buffer.push_back({static_cast<char*>(msg.data()), static_cast<char*>(msg.data()) + msg.size()});
   }
   ipc_msg_t  ipc_msg = DeserializeIPCMessage(std::move(buffer));
-  kutils::log("Message type is ", std::to_string(ipc_msg->type()).c_str());
+  kiq::log::klog().t("Message type is {}", std::to_string(ipc_msg->type()).c_str());
   const auto decoded = static_cast<platform_message*>(ipc_msg.get());
   if (is_duplicate(decoded))
   {
-    kutils::log("Ignoring duplicate IPC message");
+    kiq::log::klog().w("Ignoring duplicate IPC message");
     return;
   }
 
   processed_.push_back(decoded->id());
   msgs_.push_back(std::move(ipc_msg));
-  kutils::log("IPC message received");
+  kiq::log::klog().t("IPC message received");
   replies_pending_++;
 }
 } // ns kiq::katrix
