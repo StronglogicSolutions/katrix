@@ -73,8 +73,7 @@ void login_handler(const mtx::responses::Login &res, RequestErr err)
     klog().e("There was an error during login: {}", err->matrix_error.error);
     return;
   }
-
-  klog().i("Logged in as: {}", res.user_id.to_string());
+  klog().i("{} logged in with device id {}", res.user_id.to_string(), res.device_id);
 
   g_client->set_access_token(res.access_token);
 }
