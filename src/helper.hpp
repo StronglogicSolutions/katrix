@@ -8,7 +8,7 @@
 #include "mtxclient/http/client.hpp"
 #include "mtxclient/http/errors.hpp"
 
-namespace katrix {
+namespace kiq::katrix {
 std::shared_ptr<mtx::http::Client> g_client = nullptr;
 using namespace mtx::client;
 using namespace mtx::http;
@@ -73,62 +73,8 @@ void login_handler(const mtx::responses::Login &res, RequestErr err)
     klog().e("There was an error during login: {}", err->matrix_error.error);
     return;
   }
-
-  klog().i("Logged in as: {}", res.user_id.to_string());
+  klog().i("{} logged in with device id {}", res.user_id.to_string(), res.device_id);
 
   g_client->set_access_token(res.access_token);
 }
-///////////////////////////////////////////////////////////////
-void sync_handler(const mtx::responses::Sync &res, RequestErr err)
-{
-  auto callback = [](const mtx::responses::EventId &, RequestErr e) { if (e) print_error(e); };
-
-  SyncOpts opts;
-
-    if (err)
-    {
-      klog().e("Sync error");
-      print_error(err);
-      opts.since = g_client->next_batch_token();
-      g_client->sync(opts, &sync_handler);
-      return;
-    }
-
-    for (const auto &room : res.rooms.join)
-    {
-      for (const auto &msg : room.second.timeline.events)
-      {
-        print_message(msg);
-        if (room.first == "!BiClPQPHQPnqaRmuiV:matrix.org" && !IsMe(msg))
-          g_client->send_room_message<mtx::events::msg::Text>(room.first, {"Automated message, bitch"}, callback);
-      }
-    }
-
-    opts.since = res.next_batch;
-    g_client->set_next_batch_token(res.next_batch);
-    g_client->sync(opts, &sync_handler);
-}
-///////////////////////////////////////////////////////////////
-void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
-{
-  SyncOpts opts;
-
-  if (err)
-  {
-    klog().e("error during initial sync");
-    print_error(err);
-    if (err->status_code != 200)
-    {
-      klog().d("retrying initial sync ...");
-      opts.timeout = 0;
-      g_client->sync(opts, &initial_sync_handler);
-    }
-    return;
-  }
-
-  opts.since = res.next_batch;
-  g_client->set_next_batch_token(res.next_batch);
-  g_client->sync(opts, &sync_handler);
-}
-
-} // ns katrix
+} // ns kiq::katrix
