@@ -16,14 +16,29 @@ request_t request_converter::receive(ipc_msg_t msg)
 
   return req;
 }
+
 //----------------------------------
-void request_converter::on_request(ipc_msg_t msg)
+void request_converter::on_request(ipc_var_t msg)
 {
-  platform_message* ipc_msg = static_cast<platform_message*>(msg.get());
-  req.text  = ipc_msg->content();
-  req.user  = ipc_msg->user();
-  req.media = ipc_msg->urls();
-  req.time  = ipc_msg->time();
+  std::visit([this](const auto& ipc_msg)
+  {
+    using T = std::decay_t<decltype(ipc_msg)>;
+    if constexpr (std::is_same_v<T, kiq::platform_message>)
+    {
+      req.text  = ipc_msg.content();
+      req.user  = ipc_msg.user();
+      req.media = ipc_msg.urls();
+      req.time  = ipc_msg.time();
+    }
+    else
+    if constexpr(std::is_same_v<T, kiq::platform_info>)
+    {
+      req.info = true;
+      req.text = ipc_msg.type();
+    }
+    else
+      kiq::log::klog().w("Failed to convert IPC type {} to request", ipc_msg.type());
+  }, msg);
 }
 //-------------------------------------------------------------
 server::server()

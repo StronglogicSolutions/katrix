@@ -162,14 +162,15 @@ void send_media(const std::string& id, T&& files)
 }
 //------------------------------------------------
 template <typename T = Msg_t>
-void send_message(const std::string& room_id, const T& msg, const std::vector<std::string>& media = {})
+void send_message(const std::string& room_id, const T& msg, const std::vector<std::string>& media = {}, CallbackFunction on_finish = nullptr)
 {
   klog().i("Sending message to {}", room_id);
-  auto callback = [this](EventID res, RequestError e)
+  auto callback = [this, &on_finish](EventID res, RequestError e)
   {
     if (e)               print_error(e);
     klog().d("Message send callback event: {}", res.event_id.to_string());
     if (use_callback())  m_cb(res.event_id.to_string(), get_response_type<T>(), e);
+    if (on_finish)  on_finish(res.event_id.to_string(), get_response_type<T>(), e);
   };
 
   send_media(room_id, media);
@@ -300,10 +301,18 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
 void process_request(const request_t& req)
 {
   klog().t("Processing request");
+  if (req.info)
+  {
+    get_user_info();
+    return;
+  }
   if (req.media.empty())
   {
     klog().i("Sending \"{}\" msg to {}", req.text, m_room_id);
-    send_message(m_room_id, Msg_t{req.text});
+    send_message(m_room_id, Msg_t{req.text}, {}, [this, &req](auto resp, auto type, auto err)
+    {
+      m_server.reply(!err);
+    });
     return;
   }
   const auto& paths = kutils::urls_from_string(req.media);
