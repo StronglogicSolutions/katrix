@@ -37,7 +37,7 @@ void request_converter::on_request(ipc_var_t msg)
       req.text = ipc_msg.type();
     }
     else
-      kiq::log::klog().w("Failed to convert IPC type {} to request", ipc_msg.type());
+      kiq::log::klog().w("Failed to convert IPC type {} to request", ipc_msg->type());
   }, msg);
 }
 //-------------------------------------------------------------
@@ -82,6 +82,12 @@ ipc_msg_t server::get_msg()
 {
   ipc_msg_t msg = std::move(msgs_.front());
   msgs_.pop_front();
+
+  if      (msg->type() == constants::IPC_PLATFORM_INFO)
+    pending_[static_cast<platform_info*>(msg.get())->type()] = ipc_message::clone(*msg);
+  else if (msg->type() == constants::IPC_PLATFORM_TYPE)
+    pending_[static_cast<platform_message*>(msg.get())->id()] = ipc_message::clone(*msg);
+
   return msg;
 }
 //----------------------------------
@@ -90,18 +96,29 @@ bool server::has_msgs() const
   return !msgs_.empty();
 }
 //----------------------------------
-void server::reply(bool success)
+void server::reply(const request_t& req, bool success)
 {
-  if (!replies_pending_)
+  kiq::log::klog().d("For message with {}. Result {}", req.id, success);
+  if (!replies_pending_ || pending_.empty())
   {
-    kiq::log::klog().d("Received reply value, but not currently waiting to reply. Ignoring");
+    kiq::log::klog().d("Received reply value, but not currently waiting to reply. Ignoring. Replies pending {}", replies_pending_);
     return;
   }
 
   ipc_msg_t msg;
-    if (success)
-      msg = std::make_unique<kiq::okay_message>();
-    else
+  if (auto it = pending_.find(req.id); it != pending_.end())
+  {
+    if (success && req.info)
+    {
+      platform_info* data = static_cast<platform_info*>(msg.get());
+      msg = std::make_unique<platform_info>(data->platform(), req.text, data->type());
+    }
+    else if (success)
+      msg = std::move(it->second);
+  }
+  else if (success)
+    msg = std::make_unique<kiq::okay_message>();
+  else
       msg = std::make_unique<kiq::fail_message>();
 
   const auto&  payload   = msg->data();

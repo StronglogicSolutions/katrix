@@ -311,7 +311,7 @@ void process_request(const request_t& req)
     klog().i("Sending \"{}\" msg to {}", req.text, m_room_id);
     send_message(m_room_id, Msg_t{req.text}, {}, [this, &req](auto resp, auto type, auto err)
     {
-      m_server.reply(!err);
+      m_server.reply(req, !err);
     });
     return;
   }
@@ -330,7 +330,7 @@ void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
     print_error(err);
     if (err->status_code != 200)
     {
-      klog().d("retrying initial sync ...");
+      klog().w("retrying initial sync ...");
       opts.timeout = 0;
       g_client->sync(opts, [this](const auto& resp, const auto& err) { initial_sync_handler(resp, err); });
     }
