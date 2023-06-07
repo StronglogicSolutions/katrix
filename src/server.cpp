@@ -115,11 +115,14 @@ void server::reply(const request_t& req, bool success)
     }
     else if (success)
       msg = std::move(it->second);
+
+    if (msg)
+      pending_.erase(it);
   }
   else if (success)
     msg = std::make_unique<kiq::okay_message>();
   else
-      msg = std::make_unique<kiq::fail_message>();
+    msg = std::make_unique<kiq::fail_message>();
 
   const auto&  payload   = msg->data();
   const size_t frame_num = payload.size();
@@ -135,7 +138,7 @@ void server::reply(const request_t& req, bool success)
     tx_.send(message, flag);
   }
 
-  kiq::log::klog().t("Sent reply of {}", constants::IPC_MESSAGE_NAMES.at(msg->type()));
+  kiq::log::klog().t("Sent reply of {} as response to {}", constants::IPC_MESSAGE_NAMES.at(msg->type()), req.id);
   replies_pending_--;
 }
 

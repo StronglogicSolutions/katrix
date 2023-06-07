@@ -120,7 +120,10 @@ void send_media_message(const std::string& room_id, const std::string& msg, cons
         {
           klog().t("Sending another media message");
           send_media  (it->room_id, it->files);
-          send_message(it->room_id, {it->message});
+          send_message(it->room_id, {it->message}, {}, [this](auto resp, auto type, auto err)
+          {
+            klog().d("send_message returned response {} and error {}", resp, (err) ? err.value().matrix_error.error : "none");
+          });
           it = m_tx_queue.erase(it);
         }
         else
@@ -165,12 +168,12 @@ template <typename T = Msg_t>
 void send_message(const std::string& room_id, const T& msg, const std::vector<std::string>& media = {}, CallbackFunction on_finish = nullptr)
 {
   klog().i("Sending message to {}", room_id);
-  auto callback = [this, &on_finish](EventID res, RequestError e)
+  auto callback = [this, on_finish = std::move(on_finish)](EventID res, RequestError e)
   {
-    if (e)               print_error(e);
     klog().d("Message send callback event: {}", res.event_id.to_string());
-    if (use_callback())  m_cb(res.event_id.to_string(), get_response_type<T>(), e);
-    if (on_finish)  on_finish(res.event_id.to_string(), get_response_type<T>(), e);
+    if (e)               print_error(e);
+    if (use_callback())  m_cb     (res.event_id.to_string(), get_response_type<T>(), e);
+    if (on_finish)       on_finish(res.event_id.to_string(), get_response_type<T>(), e);
   };
 
   send_media(room_id, media);
