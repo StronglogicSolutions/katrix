@@ -96,11 +96,11 @@ KatrixBot(const std::string& server,
   g_client = std::make_shared<mtx::http::Client>(server);
 }
 //------------------------------------------------
-void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& paths)
+void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& paths, CallbackFunction on_finish = nullptr)
 {
   klog().d("Sending media message with {} urls", paths.size());
   m_tx_queue.push_back(TXMessage{msg, room_id, paths});
-  auto callback = [this, &room_id](mtx::responses::ContentURI uri, RequestError e)
+  auto callback = [this, &room_id, on_finish = std::move(on_finish)](mtx::responses::ContentURI uri, RequestError e)
   {
     klog().d("Media message callback received uri: {}", uri.content_uri);
     if (e) print_error(e);
@@ -120,10 +120,7 @@ void send_media_message(const std::string& room_id, const std::string& msg, cons
         {
           klog().t("Sending another media message");
           send_media  (it->room_id, it->files);
-          send_message(it->room_id, {it->message}, {}, [this](auto resp, auto type, auto err)
-          {
-            klog().d("send_message returned response {} and error {}", resp, (err) ? err.value().matrix_error.error : "none");
-          });
+          send_message(it->room_id, {it->message}, {}, on_finish);
           it = m_tx_queue.erase(it);
         }
         else
@@ -176,7 +173,7 @@ void send_message(const std::string& room_id, const T& msg, const std::vector<st
     if (on_finish)       on_finish(res.event_id.to_string(), get_response_type<T>(), e);
   };
 
-  send_media(room_id, media);
+  send_media(room_id, media); // TODO: Safely remove
   g_client->send_room_message<T>(room_id, {msg}, callback);
 }
 //------------------------------------------------
