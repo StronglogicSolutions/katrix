@@ -18,7 +18,7 @@ struct request_t
   bool        info{false};
 };
 //-------------------------------------------------------------
-using ipc_var_t     = std::variant<kiq::platform_message, std::unique_ptr<kiq::platform_message>, std::unique_ptr<kiq::platform_info>, kiq::platform_info, ipc_msg_t>;
+using ipc_var_t     = std::variant<kiq::platform_message, kiq::platform_info>;
 class request_converter
 {
 public:
