@@ -16,29 +16,33 @@ request_t request_converter::receive(ipc_msg_t msg)
 
   return req;
 }
+//----------------------------------
+struct req_parser
+{
+request_t operator()(kiq::platform_message msg)
+{
+  return request_t{
+    .id    = "",
+    .user  = msg.user   (),
+    .text  = msg.content(),
+    .media = msg.urls   (),
+    .time  = msg.time   ()};
+}
+//----------------------------------
+request_t operator()(kiq::platform_info msg)
+{
+  request_t req;
+  req.info = true;
+  req.text = msg.type();
+  return req;
+}
 
+};
 //----------------------------------
 void request_converter::on_request(ipc_var_t msg)
 {
-  std::visit([this](const auto& ipc_msg)
-  {
-    using T = std::decay_t<decltype(ipc_msg)>;
-    if constexpr (std::is_same_v<T, kiq::platform_message>)
-    {
-      req.text  = ipc_msg.content();
-      req.user  = ipc_msg.user();
-      req.media = ipc_msg.urls();
-      req.time  = ipc_msg.time();
-    }
-    else
-    if constexpr(std::is_same_v<T, kiq::platform_info>)
-    {
-      req.info = true;
-      req.text = ipc_msg.type();
-    }
-    else
-      kiq::log::klog().w("Failed to convert IPC type {} to request", ipc_msg->type());
-  }, msg);
+  static req_parser parser;
+  std::visit([this](auto msg) { req = parser(msg); }, msg);
 }
 //-------------------------------------------------------------
 server::server()
@@ -84,7 +88,7 @@ ipc_msg_t server::get_msg()
   msgs_.pop_front();
 
   if      (msg->type() == constants::IPC_PLATFORM_INFO)
-    pending_[static_cast<platform_info*>(msg.get())->type()] = ipc_message::clone(*msg);
+    pending_[static_cast<platform_info*>(msg.get())->type()]  = ipc_message::clone(*msg);
   else if (msg->type() == constants::IPC_PLATFORM_TYPE)
     pending_[static_cast<platform_message*>(msg.get())->id()] = ipc_message::clone(*msg);
 
@@ -169,7 +173,7 @@ void server::recv()
     buffer.push_back({static_cast<char*>(msg.data()), static_cast<char*>(msg.data()) + msg.size()});
   }
   ipc_msg_t  ipc_msg = DeserializeIPCMessage(std::move(buffer));
-  kiq::log::klog().t("Message type is {}", std::to_string(ipc_msg->type()).c_str());
+  kiq::log::klog().t("Message type is {}", ipc_msg->type());
   const auto decoded = static_cast<platform_message*>(ipc_msg.get());
   if (is_duplicate(decoded))
   {
@@ -179,7 +183,6 @@ void server::recv()
 
   processed_.push_back(decoded->id());
   msgs_.push_back(std::move(ipc_msg));
-  kiq::log::klog().t("IPC message received");
   replies_pending_++;
 }
 } // ns kiq::katrix

@@ -29,7 +29,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(coeurl)
 
 include_directories(katrix
-	#third_party/coeurl/include/coeurl/
 	third_party/mtxclient/include
 	third_party/kutils/include
 	third_party/kproto/include
@@ -38,7 +37,6 @@ include_directories(katrix
 )
 
 include_directories(katrix_bot
-	#third_party/coeurl/include/coeurl/
 	third_party/mtxclient/include
 	third_party/kutils/include
 	third_party/klogger/src
