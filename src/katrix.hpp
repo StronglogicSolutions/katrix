@@ -315,9 +315,8 @@ void process_request(const request_t& req)
     });
     return;
   }
-  const auto& paths = kutils::urls_from_string(req.media);
-  klog().d("Parsed {} paths", paths.size());
-  send_media_message(m_room_id, {req.text}, paths);
+
+  send_media_message(m_room_id, {req.text}, kutils::urls_from_string(req.media));
 }
 //------------------------------------------------
 void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
