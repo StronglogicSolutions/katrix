@@ -96,6 +96,7 @@ KatrixBot(const std::string& server,
   g_client = std::make_shared<mtx::http::Client>(server);
 }
 //------------------------------------------------
+// TODO: Implement throttling
 void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& paths, CallbackFunction on_finish = nullptr)
 {
   klog().d("Sending media message with {} urls", paths.size());
@@ -135,30 +136,12 @@ void send_media_message(const std::string& room_id, const std::string& msg, cons
 template <typename T = TXMessage::Files_t>
 void send_media(const std::string& id, T&& files)
 {
-  auto get_files_t = [](auto&& v)
-  {
-    TXMessage::Files_t f; for (auto&& m : v) f.emplace_back(TXMessage::File{m});
-    return f;
-  };
-
-  if constexpr (std::is_same_v<std::decay_t<T>, TXMessage::Files_t>)
-  {
-    klog().t("send_media() called with {} files", files.size());
-    for (const auto& file : files)
-      if (file.mime.IsPhoto())
-        send_message<Image_t>(id, get_file_type<Image_t>(file));
-      else
-        send_message<Video_t>(id, get_file_type<Video_t>(file));
-  }
-  if constexpr (std::is_same_v<std::decay_t<T>, std::vector<std::string>>)
-  {
-    klog().t("send_media() called with {} strings", files.size());
-    for (const auto& file : get_files_t(files))
-      if (file.mime.IsPhoto())
-        send_message<Image_t>(id, get_file_type<Image_t>(file));
-      else
-        send_message<Video_t>(id, get_file_type<Video_t>(file));
-  }
+  klog().t("send_media() called with {} files", files.size());
+  for (const auto& file : files)
+    if (file.mime.IsPhoto())
+      send_message<Image_t>(id, get_file_type<Image_t>(file));
+    else
+      send_message<Video_t>(id, get_file_type<Video_t>(file));
 }
 //------------------------------------------------
 template <typename T = Msg_t>
@@ -173,7 +156,6 @@ void send_message(const std::string& room_id, const T& msg, const std::vector<st
     if (on_finish)       on_finish(res.event_id.to_string(), get_response_type<T>(), e);
   };
 
-  send_media(room_id, media); // TODO: Safely remove
   g_client->send_room_message<T>(room_id, {msg}, callback);
 }
 //------------------------------------------------
@@ -315,8 +297,8 @@ void process_request(const request_t& req)
     });
     return;
   }
-
-  send_media_message(m_room_id, {req.text}, kutils::urls_from_string(req.media));
+  // TODO: Send all files once we have throttling
+  send_media_message(m_room_id, {req.text}, { kutils::urls_from_string(req.media).front() }); // Only send one file
 }
 //------------------------------------------------
 void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
