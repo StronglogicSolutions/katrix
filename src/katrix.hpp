@@ -282,6 +282,7 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
 //------------------------------------------------
 void process_request(const request_t& req)
 {
+  auto callback = [this, &req](auto resp, auto type, auto err) { m_server.reply(req, !err); };
   klog().t("Processing request");
   if (req.info)
   {
@@ -291,14 +292,11 @@ void process_request(const request_t& req)
   if (req.media.empty())
   {
     klog().i("Sending \"{}\" msg to {}", req.text, m_room_id);
-    send_message(m_room_id, Msg_t{req.text}, {}, [this, &req](auto resp, auto type, auto err)
-    {
-      m_server.reply(req, !err);
-    });
+    send_message(m_room_id, Msg_t{req.text}, {}, callback);
     return;
   }
   // TODO: Send all files once we have throttling
-  send_media_message(m_room_id, {req.text}, { kutils::urls_from_string(req.media).front() }); // Only send one file
+  send_media_message(m_room_id, {req.text}, { kutils::urls_from_string(req.media).front() }, callback); // Only send one file
 }
 //------------------------------------------------
 void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
