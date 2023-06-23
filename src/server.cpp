@@ -67,7 +67,7 @@ server::server()
   future_ = std::async(std::launch::async, [this] { run(); });
   kiq::log::klog().i("Server listening on ", RX_ADDR);
 
-  kiq::set_log_fn([](const char* message) { kiq::log::klog().t(message);} );
+  kiq::set_log_fn([](const char* message) { kiq::log::klog().t(message); });
 }
 //----------------------------------
 server::~server()

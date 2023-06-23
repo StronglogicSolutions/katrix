@@ -2,6 +2,7 @@
 
 #include "helper.hpp"
 #include "server.hpp"
+#include <active_object.hpp>
 #include <csignal>
 
 namespace kiq::katrix {
@@ -156,7 +157,10 @@ void send_message(const std::string& room_id, const T& msg, const std::vector<st
     if (on_finish)       on_finish(res.event_id.to_string(), get_response_type<T>(), e);
   };
 
-  g_client->send_room_message<T>(room_id, {msg}, callback);
+  m_active.put([this, room_id, msg, cb = std::move(callback)]
+  {
+    g_client->send_room_message<T>(room_id, {msg}, cb);
+  });
 }
 //------------------------------------------------
 template <typename T = std::string>
@@ -282,6 +286,7 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
 //------------------------------------------------
 void process_request(const request_t& req)
 {
+  auto callback = [this, &req](auto resp, auto type, auto err) { m_server.reply(req, !err); };
   klog().t("Processing request");
   if (req.info)
   {
@@ -291,14 +296,11 @@ void process_request(const request_t& req)
   if (req.media.empty())
   {
     klog().i("Sending \"{}\" msg to {}", req.text, m_room_id);
-    send_message(m_room_id, Msg_t{req.text}, {}, [this, &req](auto resp, auto type, auto err)
-    {
-      m_server.reply(req, !err);
-    });
+    send_message(m_room_id, Msg_t{req.text}, {}, callback);
     return;
   }
   // TODO: Send all files once we have throttling
-  send_media_message(m_room_id, {req.text}, { kutils::urls_from_string(req.media).front() }); // Only send one file
+  send_media_message(m_room_id, {req.text}, { kutils::urls_from_string(req.media).front() }, callback); // Only send one file
 }
 //------------------------------------------------
 void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
@@ -349,5 +351,7 @@ std::string           m_room_id;
 std::deque<TXMessage> m_tx_queue;
 server                m_server;
 request_converter     m_converter;
+bucket                m_tokens_;
+synchronized_object<> m_active{[this] { return m_tokens_.request(1); }};
 };
 } // ns kiq::katrix
