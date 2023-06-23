@@ -2,6 +2,7 @@
 
 #include "helper.hpp"
 #include "server.hpp"
+#include <active_object.hpp>
 #include <csignal>
 
 namespace kiq::katrix {
@@ -156,7 +157,10 @@ void send_message(const std::string& room_id, const T& msg, const std::vector<st
     if (on_finish)       on_finish(res.event_id.to_string(), get_response_type<T>(), e);
   };
 
-  g_client->send_room_message<T>(room_id, {msg}, callback);
+  m_active.put([this, room_id, msg, cb = std::move(callback)]
+  {
+    g_client->send_room_message<T>(room_id, {msg}, cb);
+  });
 }
 //------------------------------------------------
 template <typename T = std::string>
@@ -347,5 +351,7 @@ std::string           m_room_id;
 std::deque<TXMessage> m_tx_queue;
 server                m_server;
 request_converter     m_converter;
+bucket                m_tokens_;
+synchronized_object<> m_active{[this] { return m_tokens_.request(1); }};
 };
 } // ns kiq::katrix

@@ -1,3 +1,6 @@
+#include <condition_variable>
+#include <mutex>
+#include <chrono>
 #include <iostream>
 #include <unistd.h>
 #include <fstream>
@@ -77,4 +80,39 @@ void login_handler(const mtx::responses::Login &res, RequestErr err)
 
   g_client->set_access_token(res.access_token);
 }
+//----------------------------------------------------------------------------------------------
+class bucket
+{
+using clock_t = std::chrono::steady_clock;
+using duration_t = clock_t::duration;
+static constexpr auto g_max = clock_t::duration{std::chrono::minutes(1)};
+//------------------------------------
+public:
+  bool request(int quantity)
+  {
+    refill();
+
+    const auto required = (quantity * (rate_));
+    const auto result   = required <= available_;
+
+    if (result)
+      available_ -= required;
+
+    return result;
+  }
+//------------------------------------
+private:
+  void refill()
+  {
+    const auto now  = clock_t::now();
+    available_     += now - last_refill_;
+    available_      = std::min(available_, g_max);
+    last_refill_    = now;
+  }
+//------------------------------------
+  clock_t::duration   available_  {g_max};
+  clock_t::duration   rate_       {clock_t::duration(std::chrono::minutes(1)) / 4};
+  clock_t::time_point last_refill_{clock_t::now()};
+};
+
 } // ns kiq::katrix
