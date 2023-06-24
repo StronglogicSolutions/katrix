@@ -279,6 +279,9 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
       process_request(m_converter.receive(std::move(m_server.get_msg())));
     }
 
+    if (m_active.waiting() && m_tokens.has_token())
+      m_active.notify();
+
 }
 //------------------------------------------------
 void process_request(const request_t& req)
@@ -348,7 +351,7 @@ std::string           m_room_id;
 std::deque<TXMessage> m_tx_queue;
 server                m_server;
 request_converter     m_converter;
-bucket                m_tokens_;
-synchronized_object<> m_active{[this] { return m_tokens_.request(1); }};
+bucket                m_tokens;
+synchronized_object<> m_active{[this] { return m_tokens.request(1); }};
 };
 } // ns kiq::katrix

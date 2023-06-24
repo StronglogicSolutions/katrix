@@ -100,6 +100,11 @@ public:
 
     return result;
   }
+
+  bool has_token() const
+  {
+    return (available_ >= rate_);
+  }
 //------------------------------------
 private:
   void refill()

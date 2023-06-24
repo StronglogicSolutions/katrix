@@ -53,6 +53,7 @@ class synchronized_object
 protected:
   reactive_queue<T> queue_;
   bool              done_{false};
+  bool              waiting_{false};
   future_t          fut_;
   pred_fn           pred_;
   cond_t            cond_;
@@ -80,11 +81,12 @@ public:
       {
         auto fn = queue_.wait_and_pop();
         {
-          std::unique_lock<std::mutex> lock(mutex_);
+          waiting_ = true;
+          u_lock_t lock(mutex_);
           cond_.wait(lock, pred_);
+          waiting_ = false;
           fn();
         }
-        cond_.notify_one();
       }
     });
   }
@@ -92,6 +94,16 @@ public:
   void put(T&& fn)
   {
     queue_.push(std::move(fn));
+  }
+//-------------------------------------------------
+  bool waiting() const
+  {
+    return waiting_;
+  }
+//-------------------------------------------------
+  void notify()
+  {
+    cond_.notify_one();
   }
 };
 } // ns kiq::katrix
