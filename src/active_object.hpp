@@ -89,6 +89,7 @@ public:
           waiting_ = false;
           kiq::log::klog().d("Synchronized object is performing work");
           fn();
+          kiq::log::klog().d("Synchronized object completed work!!!!");
         }
       }
     });
@@ -101,6 +102,7 @@ public:
 //-------------------------------------------------
   bool waiting() const
   {
+
     return waiting_;
   }
 //-------------------------------------------------
