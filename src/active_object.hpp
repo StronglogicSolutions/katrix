@@ -3,6 +3,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <future>
+#include <logger.hpp>
 
 namespace kiq::katrix
 {
@@ -80,11 +81,13 @@ public:
       while (!done_)
       {
         auto fn = queue_.wait_and_pop();
+        kiq::log::klog().d("Synchronized object has work");
         {
           waiting_ = true;
           u_lock_t lock(mutex_);
           cond_.wait(lock, pred_);
           waiting_ = false;
+          kiq::log::klog().d("Synchronized object is performing work");
           fn();
         }
       }
@@ -103,6 +106,8 @@ public:
 //-------------------------------------------------
   void notify()
   {
+    kiq::log::klog().d("Synchronized object will notify");
+    lock_t lock{mutex_};
     cond_.notify_one();
   }
 };

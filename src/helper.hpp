@@ -98,12 +98,15 @@ public:
     if (result)
       available_ -= required;
 
+    klog().d("Bucket request result: {}", result);
     return result;
   }
 
   bool has_token() const
   {
-    return (available_ >= rate_);
+    const auto result = (available_ >= rate_);
+    klog().d("Bucket has tokens: {}", result);
+    return result;
   }
 //------------------------------------
 private:
