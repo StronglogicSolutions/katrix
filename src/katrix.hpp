@@ -279,9 +279,7 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
       process_request(m_converter.receive(std::move(m_server.get_msg())));
     }
 
-    if (m_active.waiting() && m_tokens.has_token())
-      m_active.notify();
-
+    process_queue();
 }
 //------------------------------------------------
 void process_request(const request_t& req)
@@ -291,7 +289,7 @@ void process_request(const request_t& req)
   if (req.info)
     return get_user_info();
 
-  m_active.put([this, &req, cb = std::move(callback)]
+  m_queue.push_back([this, &req, cb = std::move(callback)]
   {
     if (req.media.empty())
     {
@@ -344,6 +342,20 @@ void callback(T res, RequestErr e)
     klog().w("Callback received unknown response");
 }
 //------------------------------------------------
+void process_queue()
+{
+  while (!m_queue.empty())
+  {
+    if (!m_tokens.request(1))
+      return;
+
+    const auto fn = m_queue.front();
+    fn();
+    m_queue.pop_front();
+  }
+}
+//------------------------------------------------
+using queue_t = std::deque<std::function<void()>>;
 CallbackFunction      m_cb;
 std::string           m_username;
 std::string           m_password;
@@ -353,5 +365,6 @@ server                m_server;
 request_converter     m_converter;
 bucket                m_tokens;
 synchronized_object<> m_active{[this] { return m_tokens.request(1); }};
+queue_t               m_queue;
 };
 } // ns kiq::katrix
