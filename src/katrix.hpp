@@ -284,20 +284,20 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
 //------------------------------------------------
 void process_request(const request_t& req)
 {
-  auto callback = [this, &req](auto resp, auto type, auto err) { m_server.reply(req, !err); };
+  auto callback = [this, req](auto resp, auto type, auto err) { m_server.reply(req, !err); };
   klog().t("Processing request");
   if (req.info)
     return get_user_info();
 
-  m_queue.push_back([this, &req, cb = std::move(callback)]
+  m_queue.push_back([this, rx = std::move(req), cb = std::move(callback)]
   {
-    if (req.media.empty())
+    if (rx.media.empty())
     {
-      klog().i("Sending \"{}\" msg to {}", req.text, m_room_id);
-      return send_message(m_room_id, Msg_t{req.text}, {}, cb);
+      klog().i("Sending \"{}\" msg to {}", rx.text, m_room_id);
+      return send_message(m_room_id, Msg_t{rx.text}, {}, cb);
     }
 
-    send_media_message(m_room_id, {req.text}, { kutils::urls_from_string(req.media).front() }, cb); // Only send one file
+    send_media_message(m_room_id, {rx.text}, { kutils::urls_from_string(rx.media).front() }, cb); // Only send one file
   });
 }
 //------------------------------------------------
@@ -364,7 +364,6 @@ std::deque<TXMessage> m_tx_queue;
 server                m_server;
 request_converter     m_converter;
 bucket                m_tokens;
-synchronized_object<> m_active{[this] { return m_tokens.request(1); }};
 queue_t               m_queue;
 };
 } // ns kiq::katrix
