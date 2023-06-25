@@ -297,11 +297,7 @@ void process_request(const request_t& req)
       return send_message(m_room_id, Msg_t{rx.text}, {}, cb);
     }
 
-    const auto urls = kutils::urls_from_string(rx.media);
-    const auto url  = urls.front();
-    klog().i("URL string: {}", rx.media);
-    klog().i("Parsed: {}", url);
-    send_media_message(m_room_id, {rx.text}, { url }, cb); // Only send one file
+    send_media_message(m_room_id, {rx.text}, { kutils::urls_from_string(rx.media).front() }, cb); // Only send one file
   });
 }
 //------------------------------------------------
@@ -368,7 +364,6 @@ std::deque<TXMessage> m_tx_queue;
 server                m_server;
 request_converter     m_converter;
 bucket                m_tokens;
-synchronized_object<> m_active{[this] { return m_tokens.request(1); }};
 queue_t               m_queue;
 };
 } // ns kiq::katrix

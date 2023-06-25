@@ -170,11 +170,10 @@ void server::recv()
   while (more_flag && rx_.recv(msg))
   {
     more_flag = rx_.get(zmq::sockopt::rcvmore);
-    kiq::log::klog().t("Frame data: {}", msg.to_string());
     buffer.push_back({static_cast<char*>(msg.data()), static_cast<char*>(msg.data()) + msg.size()});
   }
   ipc_msg_t  ipc_msg = DeserializeIPCMessage(std::move(buffer));
-  kiq::log::klog().t("Message type is {}", ipc_msg->type());
+  kiq::log::klog().t("Message type is {}", constants::IPC_MESSAGE_NAMES.at(ipc_msg->type()));
   const auto decoded = static_cast<platform_message*>(ipc_msg.get());
   if (is_duplicate(decoded))
   {
