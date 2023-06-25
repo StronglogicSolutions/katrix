@@ -2,7 +2,6 @@
 
 #include "helper.hpp"
 #include "server.hpp"
-#include <active_object.hpp>
 #include <csignal>
 
 namespace kiq::katrix {
