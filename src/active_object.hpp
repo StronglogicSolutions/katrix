@@ -3,6 +3,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <future>
+#include <logger.hpp>
 
 namespace kiq::katrix
 {
@@ -53,6 +54,7 @@ class synchronized_object
 protected:
   reactive_queue<T> queue_;
   bool              done_{false};
+  bool              waiting_{false};
   future_t          fut_;
   pred_fn           pred_;
   cond_t            cond_;
@@ -79,12 +81,16 @@ public:
       while (!done_)
       {
         auto fn = queue_.wait_and_pop();
+        kiq::log::klog().d("Synchronized object has work");
         {
-          std::unique_lock<std::mutex> lock(mutex_);
+          waiting_ = true;
+          u_lock_t lock(mutex_);
           cond_.wait(lock, pred_);
+          waiting_ = false;
+          kiq::log::klog().d("Synchronized object is performing work");
           fn();
+          kiq::log::klog().d("Synchronized object completed work!!!!");
         }
-        cond_.notify_one();
       }
     });
   }
@@ -92,6 +98,19 @@ public:
   void put(T&& fn)
   {
     queue_.push(std::move(fn));
+  }
+//-------------------------------------------------
+  bool waiting() const
+  {
+
+    return waiting_;
+  }
+//-------------------------------------------------
+  void notify()
+  {
+    kiq::log::klog().d("Synchronized object will notify");
+    lock_t lock{mutex_};
+    cond_.notify_one();
   }
 };
 } // ns kiq::katrix

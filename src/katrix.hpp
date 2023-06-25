@@ -157,10 +157,7 @@ void send_message(const std::string& room_id, const T& msg, const std::vector<st
     if (on_finish)       on_finish(res.event_id.to_string(), get_response_type<T>(), e);
   };
 
-  m_active.put([this, room_id, msg, cb = std::move(callback)]
-  {
-    g_client->send_room_message<T>(room_id, {msg}, cb);
-  });
+  g_client->send_room_message<T>(room_id, {msg}, callback);
 }
 //------------------------------------------------
 template <typename T = std::string>
@@ -282,6 +279,7 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
       process_request(m_converter.receive(std::move(m_server.get_msg())));
     }
 
+    process_queue();
 }
 //------------------------------------------------
 void process_request(const request_t& req)
@@ -289,18 +287,18 @@ void process_request(const request_t& req)
   auto callback = [this, &req](auto resp, auto type, auto err) { m_server.reply(req, !err); };
   klog().t("Processing request");
   if (req.info)
+    return get_user_info();
+
+  m_queue.push_back([this, &req, cb = std::move(callback)]
   {
-    get_user_info();
-    return;
-  }
-  if (req.media.empty())
-  {
-    klog().i("Sending \"{}\" msg to {}", req.text, m_room_id);
-    send_message(m_room_id, Msg_t{req.text}, {}, callback);
-    return;
-  }
-  // TODO: Send all files once we have throttling
-  send_media_message(m_room_id, {req.text}, { kutils::urls_from_string(req.media).front() }, callback); // Only send one file
+    if (req.media.empty())
+    {
+      klog().i("Sending \"{}\" msg to {}", req.text, m_room_id);
+      return send_message(m_room_id, Msg_t{req.text}, {}, cb);
+    }
+
+    send_media_message(m_room_id, {req.text}, { kutils::urls_from_string(req.media).front() }, cb); // Only send one file
+  });
 }
 //------------------------------------------------
 void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
@@ -344,6 +342,20 @@ void callback(T res, RequestErr e)
     klog().w("Callback received unknown response");
 }
 //------------------------------------------------
+void process_queue()
+{
+  while (!m_queue.empty())
+  {
+    if (!m_tokens.request(1))
+      return;
+
+    const auto fn = m_queue.front();
+    fn();
+    m_queue.pop_front();
+  }
+}
+//------------------------------------------------
+using queue_t = std::deque<std::function<void()>>;
 CallbackFunction      m_cb;
 std::string           m_username;
 std::string           m_password;
@@ -351,7 +363,8 @@ std::string           m_room_id;
 std::deque<TXMessage> m_tx_queue;
 server                m_server;
 request_converter     m_converter;
-bucket                m_tokens_;
-synchronized_object<> m_active{[this] { return m_tokens_.request(1); }};
+bucket                m_tokens;
+synchronized_object<> m_active{[this] { return m_tokens.request(1); }};
+queue_t               m_queue;
 };
 } // ns kiq::katrix
