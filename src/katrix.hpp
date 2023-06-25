@@ -283,7 +283,12 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
 //------------------------------------------------
 void process_request(const request_t& req)
 {
-  auto callback = [this, req](auto resp, auto type, auto err) { m_server.reply(req, !err); };
+  auto callback = [this, req](auto resp, auto type, auto err)
+  {
+    klog().t("Request callback invoked with id {} and text {}", req.id, req.text);
+    m_server.reply(req, !err);
+  };
+
   klog().t("Processing request");
   if (req.info)
     return get_user_info();
