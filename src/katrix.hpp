@@ -284,24 +284,24 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
 //------------------------------------------------
 void process_request(const request_t& req)
 {
-  auto callback = [this, &req](auto resp, auto type, auto err) { m_server.reply(req, !err); };
+  auto callback = [this, req](auto resp, auto type, auto err) { m_server.reply(req, !err); };
   klog().t("Processing request");
   if (req.info)
     return get_user_info();
 
-  m_queue.push_back([this, &req, cb = std::move(callback)]
+  m_queue.push_back([this, rx = std::move(req), cb = std::move(callback)]
   {
-    if (req.media.empty())
+    if (rx.media.empty())
     {
-      klog().i("Sending \"{}\" msg to {}", req.text, m_room_id);
-      return send_message(m_room_id, Msg_t{req.text}, {}, cb);
+      klog().i("Sending \"{}\" msg to {}", rx.text, m_room_id);
+      return send_message(m_room_id, Msg_t{rx.text}, {}, cb);
     }
 
-    const auto urls = kutils::urls_from_string(req.media);
+    const auto urls = kutils::urls_from_string(rx.media);
     const auto url  = urls.front();
-    klog().i("URL string: {}", req.media);
+    klog().i("URL string: {}", rx.media);
     klog().i("Parsed: {}", url);
-    send_media_message(m_room_id, {req.text}, { url }, cb); // Only send one file
+    send_media_message(m_room_id, {rx.text}, { url }, cb); // Only send one file
   });
 }
 //------------------------------------------------
