@@ -297,7 +297,11 @@ void process_request(const request_t& req)
       return send_message(m_room_id, Msg_t{req.text}, {}, cb);
     }
 
-    send_media_message(m_room_id, {req.text}, { kutils::urls_from_string(req.media).front() }, cb); // Only send one file
+    const auto urls = kutils::urls_from_string(req.media);
+    const auto url  = urls.front();
+    klog().i("URL string: {}", req.media);
+    klog().i("Parsed: {}", url);
+    send_media_message(m_room_id, {req.text}, { url }, cb); // Only send one file
   });
 }
 //------------------------------------------------
