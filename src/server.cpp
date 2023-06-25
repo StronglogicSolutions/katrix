@@ -170,6 +170,7 @@ void server::recv()
   while (more_flag && rx_.recv(msg))
   {
     more_flag = rx_.get(zmq::sockopt::rcvmore);
+    kiq::log::klog().t("Frame data: {}", msg.to_string());
     buffer.push_back({static_cast<char*>(msg.data()), static_cast<char*>(msg.data()) + msg.size()});
   }
   ipc_msg_t  ipc_msg = DeserializeIPCMessage(std::move(buffer));
