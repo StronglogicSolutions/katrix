@@ -3,6 +3,7 @@
 
 static const char* RX_ADDR{"tcp://0.0.0.0:28477"};
 static const char* TX_ADDR{"tcp://0.0.0.0:28478"};
+static const char* g_platform{"Matrix"};
 //----------------------------------------------------------------
 namespace kiq::katrix
 {
@@ -124,9 +125,9 @@ void server::reply(const request_t& req, bool success)
       pending_.erase(it);
   }
   else if (success)
-    msg = std::make_unique<kiq::okay_message>();
+    msg = std::make_unique<kiq::okay_message>(g_platform, req.id);
   else
-    msg = std::make_unique<kiq::fail_message>();
+    msg = std::make_unique<kiq::fail_message>(g_platform, req.id);
 
   const auto&  payload   = msg->data();
   const size_t frame_num = payload.size();
