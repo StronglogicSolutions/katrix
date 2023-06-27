@@ -23,7 +23,7 @@ struct req_parser
 request_t operator()(kiq::platform_message msg)
 {
   return request_t{
-    .id    = "",
+    .id    = msg.id     (),
     .user  = msg.user   (),
     .text  = msg.content(),
     .media = msg.urls   (),
