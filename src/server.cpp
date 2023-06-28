@@ -119,8 +119,9 @@ void server::reply(const request_t& req, bool success)
       msg = std::make_unique<platform_info>(data->platform(), req.text, data->type());
     }
     else if (success)
-      msg = std::move(it->second);
-
+      msg = std::make_unique<kiq::okay_message>(g_platform, req.id);
+    else if (!success)
+      msg = std::make_unique<kiq::fail_message>(g_platform, req.id);
     if (msg)
       pending_.erase(it);
   }
