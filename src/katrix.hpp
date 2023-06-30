@@ -96,7 +96,6 @@ KatrixBot(const std::string& server,
   g_client = std::make_shared<mtx::http::Client>(server);
 }
 //------------------------------------------------
-// TODO: Implement throttling
 void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& paths, CallbackFunction on_finish = nullptr)
 {
   klog().d("Sending media message with {} urls", paths.size());

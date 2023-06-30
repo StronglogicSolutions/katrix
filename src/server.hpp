@@ -61,7 +61,6 @@ private:
   zmq::socket_t                 tx_;
   std::future<void>             future_;
   bool                          active_{true};
-  uint32_t                      replies_pending_{0};
   std::deque<ipc_msg_t>         msgs_;
   std::vector<std::string>      processed_;
   std::map<msg_id_t, ipc_msg_t> pending_;
