@@ -5,6 +5,37 @@
 #include <csignal>
 
 namespace kiq::katrix {
+
+struct poll
+{
+  using answer_pair_t = std::pair<std::string, std::vector<std::string>>;
+  using names_t  = std::vector<std::string>;
+  using answers_t = std::vector<std::string>;
+  using result_t = std::map<std::string, std::vector<std::string>>;
+
+  std::string question;
+  result_t    results;
+
+  result_t get() const
+  {
+    return results;
+  }
+
+
+  void set(std::string_view q, answers_t answers)
+  {
+    question = q;
+    for (const auto& answer : answers)
+      results.insert_or_assign(answer, names_t{});
+  }
+
+  void vote(std::string_view answer, std::string_view name)
+  {
+    if (results.find(answer.data()) == results.end())
+      return;
+    results[answer.data()].emplace_back(name.data());
+  }
+};
 enum class ResponseType
 {
   created,
@@ -326,6 +357,18 @@ void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
   g_client->sync(opts, [this](const auto& resp, const auto& err) { sync_handler(resp, err); });
 }
 
+//------------------------------------------------
+void set_poll(const std::string& question, const std::vector<std::string>& answers)
+{
+  m_poll.set(question, answers);
+}
+//________________________________________________
+void vote(const std::string& answer, const std::string& name)
+{
+  m_poll.vote(answer, name);
+}
+//------------------------------------------------
+//------------------------------------------------
 private:
 
 bool use_callback() const
@@ -368,5 +411,6 @@ server                m_server;
 request_converter     m_converter;
 bucket                m_tokens;
 queue_t               m_queue;
+poll                  m_poll;
 };
 } // ns kiq::katrix
