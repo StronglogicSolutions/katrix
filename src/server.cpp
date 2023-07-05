@@ -123,12 +123,11 @@ void server::reply(const request_t& req, bool success)
   {
     if (success && req.info)
     {
-      platform_info* data = static_cast<platform_info*>(msg.get());
+      platform_info* data = static_cast<platform_info*>(it->second.get());
       msg                 = std::make_unique<platform_info>(data->platform(), req.text, data->type());
       pending_.erase(it);
     }
   }
-
 
   if (!msg)
     msg = make_reply(req.id);
