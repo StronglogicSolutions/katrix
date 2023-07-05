@@ -35,6 +35,7 @@ request_t operator()(kiq::platform_info msg)
   request_t req;
   req.info = true;
   req.text = msg.type();
+  req.id   = msg.type();
   return req;
 }
 
