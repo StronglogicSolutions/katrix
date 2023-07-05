@@ -117,10 +117,8 @@ public:
 KatrixBot(const std::string& server,
           const std::string& user = "",
           const std::string& pass = "",
-          const std::string& room = "",
-          CallbackFunction   cb   = nullptr)
-: m_cb      (cb),
-  m_username(user),
+          const std::string& room = "")
+: m_username(user),
   m_password(pass),
   m_room_id (room)
 {
@@ -175,15 +173,16 @@ void send_media(const std::string& id, T&& files)
 }
 //------------------------------------------------
 template <typename T = Msg_t>
-void send_message(const std::string& room_id, const T& msg, const std::vector<std::string>& media = {}, CallbackFunction on_finish = nullptr)
+void send_message(const std::string& room_id, const T& msg, const std::vector<std::string>& media = {}, CallbackFunction cb = nullptr)
 {
   klog().i("Sending message to {}", room_id);
-  auto callback = [this, on_finish = std::move(on_finish)](EventID res, RequestError e)
+  auto callback = [this, cb = std::move(cb)](EventID res, RequestError e)
   {
     klog().d("Message send callback event: {}", res.event_id.to_string());
-    if (e)               print_error(e);
-    if (use_callback())  m_cb     (res.event_id.to_string(), get_response_type<T>(), e);
-    if (on_finish)       on_finish(res.event_id.to_string(), get_response_type<T>(), e);
+    if (e)
+      print_error(e);
+    if (cb)
+      cb(res.event_id.to_string(), get_response_type<T>(), e);
   };
 
   g_client->send_room_message<T>(room_id, {msg}, callback);
@@ -203,20 +202,14 @@ void login(const T& username = "", const T& password = "")
 }
 //------------------------------------------------
 using UploadCallback = std::function<void(mtx::responses::ContentURI, RequestError)>;
-void upload(const std::string& path, UploadCallback cb = nullptr)
+void upload(const std::string& path, UploadCallback cb)
 {
   klog().d("Uploading file with path {}", path);
-  auto callback = (cb) ? cb : [this](mtx::responses::ContentURI uri, RequestError e)
-  {
-    if (e) print_error(e);
-    klog().d("Received file URI {}:", uri.content_uri);
-    if (use_callback()) m_cb(uri.content_uri, ResponseType::file_created, e);
-  };
   auto bytes = kutils::ReadFile(path);
   auto pos   = path.find_last_of("/");
   std::string filename = (pos == std::string::npos) ? path : path.substr(pos + 1);
 
-  g_client->upload(bytes, "application/octet-stream", filename, callback);
+  g_client->upload(bytes, "application/octet-stream", filename, cb);
 }
 //------------------------------------------------
 void run(bool error = false)
@@ -250,10 +243,10 @@ bool logged_in() const
   return g_client->access_token().size() > 0;
 }
 //------------------------------------------------
-void get_user_info()
+void get_user_info(CallbackFunction cb)
 {
   klog().i("Getting user info for {}", m_username);
-  auto callback = [this](mtx::events::presence::Presence res, RequestError e)
+  auto callback = [this, cb = std::move(cb)](mtx::events::presence::Presence res, RequestError e)
   {
     auto Parse = [](auto res)
     {
@@ -262,16 +255,12 @@ void get_user_info()
              "Online: "      + std::to_string(res.currently_active) + "\n" +
              "Status: "      + res.status_msg;
     };
-    if (e)              print_error(e);
-    if (use_callback()) m_cb(Parse(res), ResponseType::user_info, e);
+    if (e)
+      print_error(e);
+    cb(Parse(res), ResponseType::user_info, e);
   };
 
   g_client->presence_status("@" + m_username + ":" + g_client->server(), callback);
-}
-//------------------------------------------------
-void get_rooms()
-{
-  if (use_callback()) m_cb("12345,room1\n67890,room2", ResponseType::rooms, RequestError{});
 }
 //------------------------------------------------
 void sync_handler(const mtx::responses::Sync &res, RequestErr err)
@@ -321,7 +310,7 @@ void process_request(const request_t& req)
 
   klog().t("Processing request");
   if (req.info)
-    return get_user_info();
+    return get_user_info(callback);
 
   m_queue.push_back([this, rx = std::move(req), cb = std::move(callback)]
   {
@@ -370,23 +359,6 @@ void vote(const std::string& answer, const std::string& name)
 //------------------------------------------------
 //------------------------------------------------
 private:
-
-bool use_callback() const
-{
-  return nullptr != m_cb;
-}
-//------------------------------------------------
-template <typename T>
-void callback(T res, RequestErr e)
-{
-  if constexpr (std::is_same_v<T, const mtx::responses::EventId>)
-  {
-    if (e)               print_error(e);
-    if (use_callback())  m_cb(res, e);
-  }
-  else
-    klog().w("Callback received unknown response");
-}
 //------------------------------------------------
 void process_queue()
 {
@@ -402,7 +374,7 @@ void process_queue()
 }
 //------------------------------------------------
 using queue_t = std::deque<std::function<void()>>;
-CallbackFunction      m_cb;
+
 std::string           m_username;
 std::string           m_password;
 std::string           m_room_id;
