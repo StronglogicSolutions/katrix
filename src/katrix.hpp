@@ -304,8 +304,11 @@ void process_request(const request_t& req)
 {
   auto callback = [this, req](auto resp, auto type, auto err)
   {
-    klog().t("Request callback invoked with id {} and text {}", req.id, req.text);
-    m_server.reply(req, !err);
+    request_t out = req;
+    if (req.info)
+      out.text = resp;
+    klog().t("Request callback invoked with id {} and text {}", out.id, out.text);
+    m_server.reply(out, !err);
   };
 
   klog().t("Processing request");
