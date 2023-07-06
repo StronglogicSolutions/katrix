@@ -3,7 +3,7 @@
 #include "helper.hpp"
 #include "server.hpp"
 #include <csignal>
-#include <mtx/events/presence.hpp>
+#include <nlohmann/json.hpp>
 
 namespace kiq::katrix {
 
@@ -243,26 +243,21 @@ bool logged_in() const
 {
   return g_client->access_token().size() > 0;
 }
+
 //------------------------------------------------
 void get_user_info(CallbackFunction cb)
 {
   klog().i("Getting user info for {}", m_username);
   auto callback = [this, cb = std::move(cb)](mtx::events::presence::Presence res, RequestError e)
   {
-    nlohmann::json data;
+    std::string data;
 
     if (e)
       print_error(e);
     else
-    {
-      data["name"]     = res.displayname;
-      data["last"]     = res.last_active_ago;
-      data["active"]   = res.currently_active;
-      data["status"]   = res.status_msg;
-      data["presence"] = mtx::presence::to_string(res.presence);
-    }
+      data = to_json(res);
 
-    cb(data.dump(), ResponseType::user_info, e);
+    cb(data, ResponseType::user_info, e);
   };
 
   g_client->presence_status("@" + m_username + ":" + g_client->server(), callback);
