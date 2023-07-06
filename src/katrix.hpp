@@ -255,7 +255,7 @@ void get_user_info(CallbackFunction cb)
     if (e)
       print_error(e);
     else
-      data = to_json(res);
+      data = to_json(res, m_username);
 
     cb(data, ResponseType::user_info, e);
   };
