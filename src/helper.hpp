@@ -126,7 +126,7 @@ private:
 static std::string to_json(const mtx::events::presence::Presence p, const std::string& name = "")
 {
   return std::string{
-      "{\"name\": \"" + p.displayname.empty() ? name : p.displayname +
+      "{\"name\": \"" + name +
     "\",\"avatar\":\"" + p.avatar_url +
     "\",\"last\": \"" + std::to_string(p.last_active_ago) +
     "\",\"active\": \"" + std::to_string(p.currently_active) +
