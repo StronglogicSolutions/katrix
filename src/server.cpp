@@ -103,10 +103,17 @@ bool server::has_msgs() const
 //----------------------------------
 void server::reply(const request_t& req, bool success)
 {
-  kiq::log::klog().d("For message with {}. Result {}", req.id, success);
-  if (!replies_pending_ || pending_.empty())
+  auto make_reply = [&](const auto id) -> ipc_msg_t
   {
-    kiq::log::klog().d("Received reply value, but not currently waiting to reply. Ignoring. Replies pending {}", replies_pending_);
+    if (success)
+      return std::make_unique<kiq::okay_message>(g_platform, id);
+    else
+      return std::make_unique<kiq::fail_message>(g_platform, id);
+  };
+
+  if (pending_.empty())
+  {
+    kiq::log::klog().d("Received reply value, but not currently waiting to reply. Ignoring: {}", req.id);
     return;
   }
 
@@ -116,19 +123,14 @@ void server::reply(const request_t& req, bool success)
     if (success && req.info)
     {
       platform_info* data = static_cast<platform_info*>(msg.get());
-      msg = std::make_unique<platform_info>(data->platform(), req.text, data->type());
-    }
-    else if (success)
-      msg = std::make_unique<kiq::okay_message>(g_platform, req.id);
-    else if (!success)
-      msg = std::make_unique<kiq::fail_message>(g_platform, req.id);
-    if (msg)
+      msg                 = std::make_unique<platform_info>(data->platform(), req.text, data->type());
       pending_.erase(it);
+    }
   }
-  else if (success)
-    msg = std::make_unique<kiq::okay_message>(g_platform, req.id);
-  else
-    msg = std::make_unique<kiq::fail_message>(g_platform, req.id);
+
+
+  if (!msg)
+    msg = make_reply(req.id);
 
   const auto&  payload   = msg->data();
   const size_t frame_num = payload.size();
