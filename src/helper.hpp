@@ -122,5 +122,15 @@ private:
   clock_t::duration   rate_       {clock_t::duration(std::chrono::minutes(1)) / 4};
   clock_t::time_point last_refill_{clock_t::now()};
 };
-
+//-------------------------------------
+static std::string to_json(const mtx::events::presence::Presence p, const std::string& name = "")
+{
+  return std::string{
+      "{\"name\": \"" + name +
+    "\",\"avatar\":\"" + p.avatar_url +
+    "\",\"last\": \"" + std::to_string(p.last_active_ago) +
+    "\",\"active\": \"" + std::to_string(p.currently_active) +
+    "\",\"status\": \"" + p.status_msg +
+    "\",\"presence\": \"" + mtx::presence::to_string(p.presence) + "\"}"};
+}
 } // ns kiq::katrix

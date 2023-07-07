@@ -35,6 +35,7 @@ request_t operator()(kiq::platform_info msg)
   request_t req;
   req.info = true;
   req.text = msg.type();
+  req.id   = msg.type();
   return req;
 }
 
@@ -122,12 +123,11 @@ void server::reply(const request_t& req, bool success)
   {
     if (success && req.info)
     {
-      platform_info* data = static_cast<platform_info*>(msg.get());
+      platform_info* data = static_cast<platform_info*>(it->second.get());
       msg                 = std::make_unique<platform_info>(data->platform(), req.text, data->type());
       pending_.erase(it);
     }
   }
-
 
   if (!msg)
     msg = make_reply(req.id);
@@ -147,7 +147,6 @@ void server::reply(const request_t& req, bool success)
   }
 
   kiq::log::klog().t("Sent reply of {} as response to {}", constants::IPC_MESSAGE_NAMES.at(msg->type()), req.id);
-  replies_pending_--;
 }
 
 void server::run()
@@ -176,17 +175,21 @@ void server::recv()
     more_flag = rx_.get(zmq::sockopt::rcvmore);
     buffer.push_back({static_cast<char*>(msg.data()), static_cast<char*>(msg.data()) + msg.size()});
   }
-  ipc_msg_t  ipc_msg = DeserializeIPCMessage(std::move(buffer));
+
+  ipc_msg_t   ipc_msg = DeserializeIPCMessage(std::move(buffer));
   kiq::log::klog().t("Message type is {}", constants::IPC_MESSAGE_NAMES.at(ipc_msg->type()));
-  const auto decoded = static_cast<platform_message*>(ipc_msg.get());
-  if (is_duplicate(decoded))
+
+  if (ipc_msg->type() == constants::IPC_PLATFORM_TYPE)
   {
-    kiq::log::klog().w("Ignoring duplicate IPC message");
-    return;
+    if (const auto decoded = static_cast<platform_message*>(ipc_msg.get()); is_duplicate(decoded))
+    {
+      kiq::log::klog().w("Ignoring duplicate IPC message");
+      return;
+    }
+    else
+      processed_.push_back(decoded->id());
   }
 
-  processed_.push_back(decoded->id());
   msgs_.push_back(std::move(ipc_msg));
-  replies_pending_++;
 }
 } // ns kiq::katrix
