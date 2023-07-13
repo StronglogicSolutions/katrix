@@ -36,6 +36,14 @@ struct poll
       return;
     results[answer.data()].emplace_back(name.data());
   }
+
+  std::string ask() const
+  {
+    std::string q = question + '\n';
+    for (const auto& [a, _] : results)
+      q += a + '\n';
+    return q;
+  }
 };
 enum class ResponseType
 {
@@ -278,26 +286,24 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
     }
 
     for (const auto &room : res.rooms.join)
-    {
       for (const auto &msg : room.second.timeline.events)
-      {
         print_message(msg);
-        if (room.first == m_room_id && !IsMe(msg))
-          g_client->send_room_message<mtx::events::msg::Text>(room.first, {"Automated message, bitch"}, callback);
-      }
-    }
 
     opts.since = res.next_batch;
     g_client->set_next_batch_token(res.next_batch);
     g_client->sync(opts, [this](const auto& resp, const auto& err) { sync_handler(resp, err); });
 
-    while (m_server.has_msgs())
-    {
-      klog().d("Processing server message");
-      process_request(m_converter.receive(std::move(m_server.get_msg())));
-    }
-
+    process_channel();
     process_queue();
+}
+//------------------------------------------------
+void process_channel()
+{
+  while (m_server.has_msgs())
+   {
+     klog().d("Processing server message");
+     process_request(m_converter.receive(std::move(m_server.get_msg())));
+   }
 }
 //------------------------------------------------
 void process_request(const request_t& req)
@@ -352,6 +358,9 @@ void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
 //------------------------------------------------
 void set_poll(const std::string& question, const std::vector<std::string>& answers)
 {
+  // Timer by time?
+  // JSON Store
+  // Generate Image of POLL?
   m_poll.set(question, answers);
 }
 //________________________________________________
