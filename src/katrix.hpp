@@ -136,6 +136,7 @@ KatrixBot(const std::string& server,
 //------------------------------------------------
 void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& paths, CallbackFunction on_finish = nullptr)
 {
+  m_uploading = (!paths.empty());
   klog().d("Sending media message with {} urls", paths.size());
   m_tx_queue.push_back(TXMessage{msg, room_id, paths});
   auto callback = [this, &room_id, on_finish = std::move(on_finish)](mtx::responses::ContentURI uri, RequestError e)
@@ -160,6 +161,7 @@ void send_media_message(const std::string& room_id, const std::string& msg, cons
           send_media  (it->room_id, it->files);
           send_message(it->room_id, {it->message}, {}, on_finish);
           it = m_tx_queue.erase(it);
+          m_uploading = false;
         }
         else
           it++;
@@ -374,7 +376,7 @@ private:
 //------------------------------------------------
 void process_queue()
 {
-  while (!m_queue.empty())
+  while (!m_uploading && !m_queue.empty())
   {
     if (!m_tokens.request(1))
       return;
@@ -396,5 +398,6 @@ request_converter     m_converter;
 bucket                m_tokens;
 queue_t               m_queue;
 poll                  m_poll;
+bool                  m_uploading{false};
 };
 } // ns kiq::katrix
