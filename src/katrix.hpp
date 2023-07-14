@@ -3,8 +3,48 @@
 #include "helper.hpp"
 #include "server.hpp"
 #include <csignal>
+#include <nlohmann/json.hpp>
 
 namespace kiq::katrix {
+
+struct poll
+{
+  using answer_pair_t = std::pair<std::string, std::vector<std::string>>;
+  using names_t  = std::vector<std::string>;
+  using answers_t = std::vector<std::string>;
+  using result_t = std::map<std::string, std::vector<std::string>>;
+
+  std::string question;
+  result_t    results;
+
+  result_t get() const
+  {
+    return results;
+  }
+
+
+  void set(std::string_view q, answers_t answers)
+  {
+    question = q;
+    for (const auto& answer : answers)
+      results.insert_or_assign(answer, names_t{});
+  }
+
+  void vote(std::string_view answer, std::string_view name)
+  {
+    if (results.find(answer.data()) == results.end())
+      return;
+    results[answer.data()].emplace_back(name.data());
+  }
+
+  std::string ask() const
+  {
+    std::string q = question + '\n';
+    for (const auto& [a, _] : results)
+      q += a + '\n';
+    return q;
+  }
+};
 enum class ResponseType
 {
   created,
@@ -86,10 +126,8 @@ public:
 KatrixBot(const std::string& server,
           const std::string& user = "",
           const std::string& pass = "",
-          const std::string& room = "",
-          CallbackFunction   cb   = nullptr)
-: m_cb      (cb),
-  m_username(user),
+          const std::string& room = "")
+: m_username(user),
   m_password(pass),
   m_room_id (room)
 {
@@ -98,6 +136,7 @@ KatrixBot(const std::string& server,
 //------------------------------------------------
 void send_media_message(const std::string& room_id, const std::string& msg, const std::vector<std::string>& paths, CallbackFunction on_finish = nullptr)
 {
+  m_uploading = (!paths.empty());
   klog().d("Sending media message with {} urls", paths.size());
   m_tx_queue.push_back(TXMessage{msg, room_id, paths});
   auto callback = [this, &room_id, on_finish = std::move(on_finish)](mtx::responses::ContentURI uri, RequestError e)
@@ -122,6 +161,7 @@ void send_media_message(const std::string& room_id, const std::string& msg, cons
           send_media  (it->room_id, it->files);
           send_message(it->room_id, {it->message}, {}, on_finish);
           it = m_tx_queue.erase(it);
+          m_uploading = false;
         }
         else
           it++;
@@ -144,15 +184,16 @@ void send_media(const std::string& id, T&& files)
 }
 //------------------------------------------------
 template <typename T = Msg_t>
-void send_message(const std::string& room_id, const T& msg, const std::vector<std::string>& media = {}, CallbackFunction on_finish = nullptr)
+void send_message(const std::string& room_id, const T& msg, const std::vector<std::string>& media = {}, CallbackFunction cb = nullptr)
 {
   klog().i("Sending message to {}", room_id);
-  auto callback = [this, on_finish = std::move(on_finish)](EventID res, RequestError e)
+  auto callback = [this, cb = std::move(cb)](EventID res, RequestError e)
   {
     klog().d("Message send callback event: {}", res.event_id.to_string());
-    if (e)               print_error(e);
-    if (use_callback())  m_cb     (res.event_id.to_string(), get_response_type<T>(), e);
-    if (on_finish)       on_finish(res.event_id.to_string(), get_response_type<T>(), e);
+    if (e)
+      print_error(e);
+    if (cb)
+      cb(res.event_id.to_string(), get_response_type<T>(), e);
   };
 
   g_client->send_room_message<T>(room_id, {msg}, callback);
@@ -172,20 +213,14 @@ void login(const T& username = "", const T& password = "")
 }
 //------------------------------------------------
 using UploadCallback = std::function<void(mtx::responses::ContentURI, RequestError)>;
-void upload(const std::string& path, UploadCallback cb = nullptr)
+void upload(const std::string& path, UploadCallback cb)
 {
   klog().d("Uploading file with path {}", path);
-  auto callback = (cb) ? cb : [this](mtx::responses::ContentURI uri, RequestError e)
-  {
-    if (e) print_error(e);
-    klog().d("Received file URI {}:", uri.content_uri);
-    if (use_callback()) m_cb(uri.content_uri, ResponseType::file_created, e);
-  };
   auto bytes = kutils::ReadFile(path);
   auto pos   = path.find_last_of("/");
   std::string filename = (pos == std::string::npos) ? path : path.substr(pos + 1);
 
-  g_client->upload(bytes, "application/octet-stream", filename, callback);
+  g_client->upload(bytes, "application/octet-stream", filename, cb);
 }
 //------------------------------------------------
 void run(bool error = false)
@@ -218,29 +253,24 @@ bool logged_in() const
 {
   return g_client->access_token().size() > 0;
 }
+
 //------------------------------------------------
-void get_user_info()
+void get_user_info(CallbackFunction cb)
 {
   klog().i("Getting user info for {}", m_username);
-  auto callback = [this](mtx::events::presence::Presence res, RequestError e)
+  auto callback = [this, cb = std::move(cb)](mtx::events::presence::Presence res, RequestError e)
   {
-    auto Parse = [](auto res)
-    {
-      return "Name: "        + res.displayname                      + "\n" +
-             "Last active: " + std::to_string(res.last_active_ago)  + "\n" +
-             "Online: "      + std::to_string(res.currently_active) + "\n" +
-             "Status: "      + res.status_msg;
-    };
-    if (e)              print_error(e);
-    if (use_callback()) m_cb(Parse(res), ResponseType::user_info, e);
+    std::string data;
+
+    if (e)
+      print_error(e);
+    else
+      data = to_json(res, m_username);
+
+    cb(data, ResponseType::user_info, e);
   };
 
   g_client->presence_status("@" + m_username + ":" + g_client->server(), callback);
-}
-//------------------------------------------------
-void get_rooms()
-{
-  if (use_callback()) m_cb("12345,room1\n67890,room2", ResponseType::rooms, RequestError{});
 }
 //------------------------------------------------
 void sync_handler(const mtx::responses::Sync &res, RequestErr err)
@@ -258,39 +288,40 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
     }
 
     for (const auto &room : res.rooms.join)
-    {
       for (const auto &msg : room.second.timeline.events)
-      {
         print_message(msg);
-        if (room.first == m_room_id && !IsMe(msg))
-          g_client->send_room_message<mtx::events::msg::Text>(room.first, {"Automated message, bitch"}, callback);
-      }
-    }
 
     opts.since = res.next_batch;
     g_client->set_next_batch_token(res.next_batch);
     g_client->sync(opts, [this](const auto& resp, const auto& err) { sync_handler(resp, err); });
 
-    while (m_server.has_msgs())
-    {
-      klog().d("Processing server message");
-      process_request(m_converter.receive(std::move(m_server.get_msg())));
-    }
-
+    process_channel();
     process_queue();
+}
+//------------------------------------------------
+void process_channel()
+{
+  while (m_server.has_msgs())
+   {
+     klog().d("Processing server message");
+     process_request(m_converter.receive(std::move(m_server.get_msg())));
+   }
 }
 //------------------------------------------------
 void process_request(const request_t& req)
 {
   auto callback = [this, req](auto resp, auto type, auto err)
   {
-    klog().t("Request callback invoked with id {} and text {}", req.id, req.text);
-    m_server.reply(req, !err);
+    request_t out = req;
+    if (req.info)
+      out.text = resp;
+    klog().t("Request callback invoked with id {} and text {}", out.id, out.text);
+    m_server.reply(out, !err);
   };
 
   klog().t("Processing request");
   if (req.info)
-    return get_user_info();
+    return get_user_info(callback);
 
   m_queue.push_back([this, rx = std::move(req), cb = std::move(callback)]
   {
@@ -326,28 +357,26 @@ void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
   g_client->sync(opts, [this](const auto& resp, const auto& err) { sync_handler(resp, err); });
 }
 
-private:
-
-bool use_callback() const
+//------------------------------------------------
+void set_poll(const std::string& question, const std::vector<std::string>& answers)
 {
-  return nullptr != m_cb;
+  // Timer by time?
+  // JSON Store
+  // Generate Image of POLL?
+  m_poll.set(question, answers);
+}
+//________________________________________________
+void vote(const std::string& answer, const std::string& name)
+{
+  m_poll.vote(answer, name);
 }
 //------------------------------------------------
-template <typename T>
-void callback(T res, RequestErr e)
-{
-  if constexpr (std::is_same_v<T, const mtx::responses::EventId>)
-  {
-    if (e)               print_error(e);
-    if (use_callback())  m_cb(res, e);
-  }
-  else
-    klog().w("Callback received unknown response");
-}
+//------------------------------------------------
+private:
 //------------------------------------------------
 void process_queue()
 {
-  while (!m_queue.empty())
+  while (!m_uploading && !m_queue.empty())
   {
     if (!m_tokens.request(1))
       return;
@@ -359,7 +388,7 @@ void process_queue()
 }
 //------------------------------------------------
 using queue_t = std::deque<std::function<void()>>;
-CallbackFunction      m_cb;
+
 std::string           m_username;
 std::string           m_password;
 std::string           m_room_id;
@@ -368,5 +397,7 @@ server                m_server;
 request_converter     m_converter;
 bucket                m_tokens;
 queue_t               m_queue;
+poll                  m_poll;
+bool                  m_uploading{false};
 };
 } // ns kiq::katrix
