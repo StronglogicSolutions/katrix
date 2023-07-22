@@ -253,7 +253,6 @@ bool logged_in() const
 {
   return g_client->access_token().size() > 0;
 }
-
 //------------------------------------------------
 void get_user_info(CallbackFunction cb)
 {
@@ -273,6 +272,32 @@ void get_user_info(CallbackFunction cb)
   g_client->presence_status("@" + m_username + ":" + g_client->server(), callback);
 }
 //------------------------------------------------
+void get_rooms()
+{
+  std::vector<std::string> rooms;
+  klog().i("Getting rooms for {}", m_username);
+  for (const auto& room : m_rooms)
+  {
+    for (const auto &msg : room.second.timeline.events)
+      print_message(msg);
+  }
+
+  // for (const auto& [name, room] : m_rooms)
+  // {
+  //   rooms.push_back(name);
+  //   klog().d("Room {}", name);
+  //   for (const auto &msg : room.second.timeline.events)
+  //     print_message(msg);
+  //   // if (room.state.events.size() > 0)
+  //     // std::visit([](auto e)
+  //     // {
+
+  //     //   for (const auto &msg : room.second.timeline.events)
+  //     //   print_message(msg);
+  //     // }, room.state.events.front());
+  // }
+}
+//------------------------------------------------
 void sync_handler(const mtx::responses::Sync &res, RequestErr err)
 {
   auto callback = [](const mtx::responses::EventId &, RequestErr e) { if (e) print_error(e); };
@@ -286,6 +311,8 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
       g_client->sync(opts, [this] (const auto& resp, const auto& err) { sync_handler(resp, err); });
       return;
     }
+
+    m_rooms = res.rooms.join;
 
     for (const auto &room : res.rooms.join)
       for (const auto &msg : room.second.timeline.events)
@@ -388,6 +415,7 @@ void process_queue()
 }
 //------------------------------------------------
 using queue_t = std::deque<std::function<void()>>;
+using rooms_t = std::map<std::string, mtx::responses::JoinedRoom>;
 
 std::string           m_username;
 std::string           m_password;
@@ -398,6 +426,7 @@ request_converter     m_converter;
 bucket                m_tokens;
 queue_t               m_queue;
 poll                  m_poll;
+rooms_t               m_rooms;
 bool                  m_uploading{false};
 };
 } // ns kiq::katrix
