@@ -1,5 +1,6 @@
 #pragma once
 
+#include <unordered_set>
 #include "helper.hpp"
 #include "server.hpp"
 #include <csignal>
@@ -10,33 +11,32 @@ namespace kiq::katrix {
 struct poll
 {
   using answer_pair_t = std::pair<std::string, std::vector<std::string>>;
-  using names_t  = std::vector<std::string>;
-  using answers_t = std::vector<std::string>;
-  using result_t = std::map<std::string, std::vector<std::string>>;
-
+  using names_t       = std::vector<std::string>;
+  using answers_t     = std::vector<std::string>;
+  using result_t      = std::map<std::string, std::vector<std::string>>;
+  //--------------------------------------
   std::string question;
   result_t    results;
-
+  //--------------------------------------
   result_t get() const
   {
     return results;
   }
-
-
+  //--------------------------------------
   void set(std::string_view q, answers_t answers)
   {
     question = q;
     for (const auto& answer : answers)
       results.insert_or_assign(answer, names_t{});
   }
-
+  //--------------------------------------
   void vote(std::string_view answer, std::string_view name)
   {
     if (results.find(answer.data()) == results.end())
       return;
     results[answer.data()].emplace_back(name.data());
   }
-
+  //--------------------------------------
   std::string ask() const
   {
     std::string q = question + '\n';
@@ -45,6 +45,7 @@ struct poll
     return q;
   }
 };
+//------------------------------------------------
 enum class ResponseType
 {
   created,
@@ -62,6 +63,7 @@ using Image_t          = mtx::events::msg::Image;
 using Video_t          = mtx::events::msg::Video;
 using EventID          = mtx::responses::EventId;
 using RequestError     = mtx::http::RequestErr;
+using rooms_t          = std::map<std::string, std::vector<std::string>>;
 //------------------------------------------------
 template <typename T>
 auto get_response_type = []
@@ -272,30 +274,27 @@ void get_user_info(CallbackFunction cb)
   g_client->presence_status("@" + m_username + ":" + g_client->server(), callback);
 }
 //------------------------------------------------
-void get_rooms()
+void fetch_rooms()
 {
-  std::vector<std::string> rooms;
   klog().i("Getting rooms for {}", m_username);
-  for (const auto& room : m_rooms)
+  for (const auto& [id, aliases] : m_rooms)
   {
-    for (const auto &msg : room.second.timeline.events)
-      print_message(msg);
+    auto cb = [this, id](mtx::responses::Aliases res, RequestErr err)
+    {
+      m_rooms[id] = res.aliases;
+    };
+    if (aliases.empty())
+      g_client->list_room_aliases(id, cb);
+    else
+      for (const auto& alias : aliases)
+        klog().d("{} alias {}", id, alias);
   }
-
-  // for (const auto& [name, room] : m_rooms)
-  // {
-  //   rooms.push_back(name);
-  //   klog().d("Room {}", name);
-  //   for (const auto &msg : room.second.timeline.events)
-  //     print_message(msg);
-  //   // if (room.state.events.size() > 0)
-  //     // std::visit([](auto e)
-  //     // {
-
-  //     //   for (const auto &msg : room.second.timeline.events)
-  //     //   print_message(msg);
-  //     // }, room.state.events.front());
-  // }
+}
+//------------------------------------------------
+rooms_t
+get_rooms() const
+{
+  return m_rooms;
 }
 //------------------------------------------------
 void sync_handler(const mtx::responses::Sync &res, RequestErr err)
@@ -312,11 +311,13 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
       return;
     }
 
-    m_rooms = res.rooms.join;
-
     for (const auto &room : res.rooms.join)
+    {
+      if (!m_rooms.contains(room.first))
+        m_rooms[room.first] = {};
       for (const auto &msg : room.second.timeline.events)
         print_message(msg);
+    }
 
     opts.since = res.next_batch;
     g_client->set_next_batch_token(res.next_batch);
@@ -324,6 +325,7 @@ void sync_handler(const mtx::responses::Sync &res, RequestErr err)
 
     process_channel();
     process_queue();
+    fetch_rooms();
 }
 //------------------------------------------------
 void process_channel()
@@ -415,7 +417,6 @@ void process_queue()
 }
 //------------------------------------------------
 using queue_t = std::deque<std::function<void()>>;
-using rooms_t = std::map<std::string, mtx::responses::JoinedRoom>;
 
 std::string           m_username;
 std::string           m_password;
