@@ -292,8 +292,17 @@ void fetch_rooms()
 }
 //------------------------------------------------
 rooms_t
-get_rooms() const
+get_rooms(CallbackFunction callback) const
 {
+  if (callback)
+  {
+    std::string rooms;
+    for (const auto& [id, aliases] : m_rooms)
+      if (!aliases.empty())
+        rooms += id + ',' + aliases.front() + '\n';
+    callback(rooms, ResponseType::rooms, {});
+  }
+
   return m_rooms;
 }
 //------------------------------------------------
@@ -350,7 +359,17 @@ void process_request(const request_t& req)
 
   klog().t("Processing request");
   if (req.info)
-    return get_user_info(callback);
+  {
+    klog().d("Info request of type {}", req.text);
+    if (req.text == "matrix:info")
+      get_user_info(callback);
+    else
+    if (req.text == "matrix:rooms")
+      get_rooms(callback);
+    else
+      klog().w("Failed to handle info request");
+    return;
+  }
 
   m_queue.push_back([this, rx = std::move(req), cb = std::move(callback)]
   {
