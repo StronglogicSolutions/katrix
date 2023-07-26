@@ -276,19 +276,9 @@ void get_user_info(CallbackFunction cb)
 //------------------------------------------------
 void fetch_rooms()
 {
-  klog().i("Getting rooms for {}", m_username);
   for (const auto& [id, aliases] : m_rooms)
-  {
-    auto cb = [this, id](mtx::responses::Aliases res, RequestErr err)
-    {
-      m_rooms[id] = res.aliases;
-    };
     if (aliases.empty())
-      g_client->list_room_aliases(id, cb);
-    else
-      for (const auto& alias : aliases)
-        klog().d("{} alias {}", id, alias);
-  }
+      g_client->list_room_aliases(id, [this, id](auto res, auto err) { m_rooms[id] = res.aliases; });
 }
 //------------------------------------------------
 rooms_t
