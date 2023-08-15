@@ -217,10 +217,17 @@ void login(const T& username = "", const T& password = "")
 using UploadCallback = std::function<void(mtx::responses::ContentURI, RequestError)>;
 void upload(const std::string& path, UploadCallback cb)
 {
+  auto get_clean_path = [&path]
+  {
+    const auto pos = path.find("://");
+    return (pos != std::string::npos) ? path.substr(pos + 3) : path;
+  };
+
   klog().d("Uploading file with path {}", path);
-  auto bytes = kutils::ReadFile(path);
-  auto pos   = path.find_last_of("/");
-  std::string filename = (pos == std::string::npos) ? path : path.substr(pos + 1);
+
+  const auto bytes    = kutils::ReadFile(get_clean_path());
+  const auto pos      = path.find_last_of("/");
+  const auto filename = (pos == std::string::npos) ? path : path.substr(pos + 1);
 
   g_client->upload(bytes, "application/octet-stream", filename, cb);
 }
@@ -276,19 +283,9 @@ void get_user_info(CallbackFunction cb)
 //------------------------------------------------
 void fetch_rooms()
 {
-  klog().i("Getting rooms for {}", m_username);
   for (const auto& [id, aliases] : m_rooms)
-  {
-    auto cb = [this, id](mtx::responses::Aliases res, RequestErr err)
-    {
-      m_rooms[id] = res.aliases;
-    };
     if (aliases.empty())
-      g_client->list_room_aliases(id, cb);
-    else
-      for (const auto& alias : aliases)
-        klog().d("{} alias {}", id, alias);
-  }
+      g_client->list_room_aliases(id, [this, id](auto res, auto err) { m_rooms[id] = res.aliases; });
 }
 //------------------------------------------------
 rooms_t
