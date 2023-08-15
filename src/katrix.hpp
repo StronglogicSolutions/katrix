@@ -217,10 +217,17 @@ void login(const T& username = "", const T& password = "")
 using UploadCallback = std::function<void(mtx::responses::ContentURI, RequestError)>;
 void upload(const std::string& path, UploadCallback cb)
 {
+  auto get_clean_path = [&path]
+  {
+    const auto pos = path.find("://");
+    return (pos != std::string::npos) ? path.substr(pos + 3) : path;
+  };
+
   klog().d("Uploading file with path {}", path);
-  auto bytes = kutils::ReadFile(path);
-  auto pos   = path.find_last_of("/");
-  std::string filename = (pos == std::string::npos) ? path : path.substr(pos + 1);
+
+  const auto bytes    = kutils::ReadFile(get_clean_path());
+  const auto pos      = path.find_last_of("/");
+  const auto filename = (pos == std::string::npos) ? path : path.substr(pos + 1);
 
   g_client->upload(bytes, "application/octet-stream", filename, cb);
 }
