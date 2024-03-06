@@ -4,3 +4,9 @@
 [submodule "third_party/kutils"]
 	path = third_party/kutils
 	url = https://github.com/StronglogicSolutions/kutils.git
+[submodule "third_party/klogger"]
+	path = third_party/klogger
+	url = https://github.com/StronglogicSolutions/klogger
+[submodule "third_party/kproto"]
+	path = third_party/kproto
+	url = https://github.com/StronglogicSolutions/kproto

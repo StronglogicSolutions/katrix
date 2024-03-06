@@ -1,13 +1,17 @@
+#include <condition_variable>
+#include <mutex>
+#include <chrono>
 #include <iostream>
 #include <unistd.h>
 #include <fstream>
 #include <sstream>
 #include <kutils.hpp>
+#include <logger.hpp>
 #include "mtx.hpp"
 #include "mtxclient/http/client.hpp"
 #include "mtxclient/http/errors.hpp"
 
-namespace katrix {
+namespace kiq::katrix {
 std::shared_ptr<mtx::http::Client> g_client = nullptr;
 using namespace mtx::client;
 using namespace mtx::http;
@@ -15,8 +19,7 @@ using namespace mtx::events;
 
 using PublicMessage = RoomEvent<msg::Text>;
 ///////////////////////////////////////////////////////////////
-template<typename... Args>
-static void log(Args... args) { for (const auto& s : { args... }) std::cout << s; std::cout << std::endl; }
+using namespace kiq::log;
 ///////////////////////////////////////////////////////////////
 std::string get_sender(const mtx::events::collections::TimelineEvents &event)
 {
@@ -55,82 +58,79 @@ std::string get_body(const mtx::events::collections::TimelineEvents &e)
 ///////////////////////////////////////////////////////////////
 void print_message(const mtx::events::collections::TimelineEvents &event)
 {
-  if (is_room_message(event)) log(get_sender(event), std::string{" : "}, get_body(event));
+  if (is_room_message(event))
+    klog().i("{} : {}", get_sender(event), get_body(event));
 }
 ///////////////////////////////////////////////////////////////
 static const auto IsMe = [](auto&& e) { return get_sender(e) == "@logicp:matrix.org"; };
 ///////////////////////////////////////////////////////////////
-std::string error_to_string(RequestErr err)
+void print_error(RequestErr e)
 {
-  return
-  "HTTP  code: " + std::to_string(err->status_code) + '\n' +
-  "Error msg:  " + err->matrix_error.error + '\n' +
-  "Error code: " + std::to_string(err->error_code);
+  klog().e("HTTP  code: {}\nError msg:  {}\nError code: {}", e->status_code, e->matrix_error.error, e->error_code);
 }
-///////////////////////////////////////////////////////////////
-void print_error(RequestErr e) { std::cerr << error_to_string(e) << std::endl; }
 ///////////////////////////////////////////////////////////////
 void login_handler(const mtx::responses::Login &res, RequestErr err)
 {
   if (err)
   {
-    log("There was an error during login: ", err->matrix_error.error.c_str());
+    klog().e("There was an error during login: {}", err->matrix_error.error);
     return;
   }
-
-  log("Logged in as: ", res.user_id.to_string().c_str());
+  klog().i("{} logged in with device id {}", res.user_id.to_string(), res.device_id);
 
   g_client->set_access_token(res.access_token);
 }
-///////////////////////////////////////////////////////////////
-void sync_handler(const mtx::responses::Sync &res, RequestErr err)
+//----------------------------------------------------------------------------------------------
+class bucket
 {
-  auto callback = [](const mtx::responses::EventId &, RequestErr e) { if (e) error_to_string(e); };
-
-  SyncOpts opts;
-
-    if (err)
-    {
-      log("sync error:\n", error_to_string(err).c_str());
-      opts.since = g_client->next_batch_token();
-      g_client->sync(opts, &sync_handler);
-      return;
-    }
-
-    for (const auto &room : res.rooms.join)
-    {
-      for (const auto &msg : room.second.timeline.events)
-      {
-        print_message(msg);
-        if (room.first == "!BiClPQPHQPnqaRmuiV:matrix.org" && !IsMe(msg))
-          g_client->send_room_message<mtx::events::msg::Text>(room.first, {"Automated message, bitch"}, callback);
-      }
-    }
-
-    opts.since = res.next_batch;
-    g_client->set_next_batch_token(res.next_batch);
-    g_client->sync(opts, &sync_handler);
-}
-///////////////////////////////////////////////////////////////
-void initial_sync_handler(const mtx::responses::Sync &res, RequestErr err)
-{
-  SyncOpts opts;
-
-  if (err)
+using clock_t = std::chrono::steady_clock;
+using duration_t = clock_t::duration;
+static constexpr auto g_max = clock_t::duration{std::chrono::minutes(1)};
+//------------------------------------
+public:
+  bool request(int quantity)
   {
-    log("error during initial sync:\n", error_to_string(err).c_str());
-    if (err->status_code != 200)
-    {
-      log("retrying initial sync ...");
-      opts.timeout = 0;
-      g_client->sync(opts, &initial_sync_handler);
-    }
-    return;
+    refill();
+
+    const auto required = (quantity * (rate_));
+    const auto result   = required <= available_;
+
+    if (result)
+      available_ -= required;
+
+    klog().d("Bucket request result: {}", result);
+    return result;
   }
 
-  opts.since = res.next_batch;
-  g_client->set_next_batch_token(res.next_batch);
-  g_client->sync(opts, &sync_handler);
+  bool has_token() const
+  {
+    const auto result = (available_ >= rate_);
+    klog().d("Bucket has tokens: {}", result);
+    return result;
+  }
+//------------------------------------
+private:
+  void refill()
+  {
+    const auto now  = clock_t::now();
+    available_     += now - last_refill_;
+    available_      = std::min(available_, g_max);
+    last_refill_    = now;
+  }
+//------------------------------------
+  clock_t::duration   available_  {g_max};
+  clock_t::duration   rate_       {clock_t::duration(std::chrono::minutes(1)) / 4};
+  clock_t::time_point last_refill_{clock_t::now()};
+};
+//-------------------------------------
+static std::string to_json(const mtx::events::presence::Presence p, const std::string& name = "")
+{
+  return std::string{
+      "{\"name\": \"" + name +
+    "\",\"avatar\":\"" + p.avatar_url +
+    "\",\"last\": \"" + std::to_string(p.last_active_ago) +
+    "\",\"active\": \"" + std::to_string(p.currently_active) +
+    "\",\"status\": \"" + p.status_msg +
+    "\",\"presence\": \"" + mtx::presence::to_string(p.presence) + "\"}"};
 }
-
-} // ns katrix
+} // ns kiq::katrix
