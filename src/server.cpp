@@ -125,6 +125,7 @@ void server::reply(const request_t& req, bool success)
     {
       platform_info* data = static_cast<platform_info*>(it->second.get());
       msg                 = std::make_unique<platform_info>(data->platform(), req.text, data->type());
+      kiq::log::klog().i("Platform Info is: {}", msg->to_string());
       pending_.erase(it);
     }
   }
@@ -137,8 +138,8 @@ void server::reply(const request_t& req, bool success)
 
   for (int i = 0; i < frame_num; i++)
   {
-    auto flag = i == (frame_num - 1) ? zmq::send_flags::none : zmq::send_flags::sndmore;
-    auto data = payload.at(i);
+    const auto flag = i == (frame_num - 1) ? zmq::send_flags::none : zmq::send_flags::sndmore;
+    const auto data = payload.at(i);
 
     zmq::message_t message{data.size()};
     std::memcpy(message.data(), data.data(), data.size());
